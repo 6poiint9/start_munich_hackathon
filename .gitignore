@@ -1,0 +1,54 @@
+# Java and JVM build output
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+replay_pid*
+.gradle/
+build/
+target/
+
+# JavaScript, TypeScript, and web build output
+node_modules/
+bower_components/
+dist/
+coverage/
+.next/
+.nuxt/
+.output/
+.svelte-kit/
+.angular/
+.parcel-cache/
+.vite/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# C and C++ build output
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+compile_commands.json
+*.gcda
+*.gcno
+*.profraw
+
+# Rust build output
+/target/
+
+# IDE and operating system files
+.idea/
+*.iml
+.DS_Store
