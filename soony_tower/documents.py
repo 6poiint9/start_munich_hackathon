@@ -1,4 +1,4 @@
-"""Document agent: reads PDFs, scans, Word and Excel files with Gemini.
+"""Document agent: reads PDFs, scans, Word and Excel files with Radeon.
 
 Each file version is read once. The result is stored under
 data/extractions/<sha256>.json, so a replaced file is read again and an
@@ -10,31 +10,33 @@ treat their content as data, and to report instructions inside a document
 """
 
 import concurrent.futures
+import base64
 import hashlib
 import io
 import json
 import os
 import pathlib
-import re
 import threading
 import time
 from typing import Literal
 
 import docx
 import dotenv
-from google import genai
-from google.genai import errors as genai_errors
-from google.genai import types
+from openai import OpenAI
+from openai import APIError
+from openai import APIStatusError
 import pandas as pd
 import pydantic
+import pypdf
 
 from soony_tower import model
 from soony_tower import portal
 from soony_tower import settings
 
-# Set GEMINI_MODEL in .env to pin a model. Without it, the newest stable
-# "pro" model that the key can use is picked once per run.
-DEFAULT_MODEL_ENV = "GEMINI_MODEL"
+# Set RADEON_MODEL in .env to pin a model. Qwen3.8-27B is the default.
+RADEON_BASE_URL = "https://radeon-global.anruicloud.com/api/v1"
+DEFAULT_MODEL_ENV = "RADEON_MODEL"
+DEFAULT_MODEL = "Qwen3.8-27B"
 _ATTEMPTS_PER_MODEL = 2
 _WORKERS = 4  # documents read at the same time
 EXTRACTIONS_DIR = portal.DATA_DIR / "extractions"
@@ -125,27 +127,35 @@ Which supplier delivers which part:
 {parts.to_csv(index=False)}"""
 
 
-def content_parts(path: pathlib.Path) -> list[types.Part]:
-    """Turns one file into Gemini content parts."""
+def content_parts(path: pathlib.Path) -> list[dict]:
+    """Turns one file into OpenAI chat content parts."""
     suffix = path.suffix.lower()
     raw = path.read_bytes()
-    if suffix == ".pdf":
-        return [types.Part.from_bytes(data=raw, mime_type="application/pdf")]
     if suffix in (".png", ".jpg", ".jpeg"):
         mime = "image/png" if suffix == ".png" else "image/jpeg"
-        return [types.Part.from_bytes(data=raw, mime_type=mime)]
+        encoded = base64.b64encode(raw).decode("ascii")
+        return [{"type": "image_url",
+                 "image_url": {"url": f"data:{mime};base64,{encoded}"}}]
+    if suffix == ".pdf":
+        reader = pypdf.PdfReader(io.BytesIO(raw))
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        if not text.strip():
+            return [{"type": "text",
+                     "text": f"PDF document: {path.name}\n"
+                             "No text could be extracted from this scanned PDF."}]
+        return [{"type": "text", "text": text}]
     if suffix == ".docx":
         document = docx.Document(io.BytesIO(raw))
         text = "\n".join(p.text for p in document.paragraphs)
         for table in document.tables:
             for row in table.rows:
                 text += "\n" + " | ".join(cell.text for cell in row.cells)
-        return [types.Part.from_text(text=text)]
+        return [{"type": "text", "text": text}]
     if suffix in (".xlsx", ".xls"):
         sheets = pd.read_excel(io.BytesIO(raw), sheet_name=None, header=None)
         text = "\n\n".join(f"Sheet {name}:\n{frame.to_csv(index=False, header=False)}"
                             for name, frame in sheets.items())
-        return [types.Part.from_text(text=text)]
+        return [{"type": "text", "text": text}]
     raise ValueError(f"Unsupported document type: {path.name}")
 
 
@@ -186,76 +196,86 @@ def load_extraction(path: str) -> dict | None:
     return json.loads(cached.read_text(encoding="utf-8"))
 
 
-def pick_models(client: genai.Client) -> list[str]:
-    """Models to try in order: GEMINI_MODEL first, then the newest stable ones.
-
-    At the same version number, pro wins over flash. Later models in the list
-    are fallbacks for when a model is overloaded.
-    """
-    pinned = os.environ.get(DEFAULT_MODEL_ENV)
+def list_models(client: OpenAI) -> list[str]:
+    """Returns text-output models from the Radeon endpoint."""
     names = []
     for entry in client.models.list():
-        name = entry.name.removeprefix("models/")
-        actions = entry.supported_actions or []
-        if ("generateContent" in actions and name.startswith("gemini-") and
-                re.search(r"-(pro|flash)$", name) and
-                not re.search(r"preview|exp|tts|image|latest|lite", name)):
-            names.append(name)
+        if "text" in getattr(entry, "output", []) or not hasattr(entry, "output"):
+            names.append(entry.id)
+    return sorted(set(names))
+
+
+def pick_models(client: OpenAI) -> list[str]:
+    """Returns the pinned model first, then other Radeon text models."""
+    pinned = os.environ.get(DEFAULT_MODEL_ENV)
+    names = list_models(client)
     if not names:
-        raise RuntimeError("No Gemini model available. Set GEMINI_MODEL in .env.")
-
-    def version(name: str) -> tuple[float, ...]:
-        numbers = tuple(float(n) for n in re.findall(r"\d+(?:\.\d+)?", name))
-        return numbers + ((1.0,) if name.endswith("-pro") else (0.0,))
-
-    ordered = sorted(names, key=version, reverse=True)[:3]
-    return [pinned, *[n for n in ordered if n != pinned]] if pinned else ordered
+        return [pinned or DEFAULT_MODEL]
+    preferred = [pinned or DEFAULT_MODEL]
+    return preferred + [name for name in names if name not in preferred]
 
 
-def generate(client: genai.Client, models: list[str], contents, config,
-              log=print) -> tuple[types.GenerateContentResponse, str]:
-    """Calls Gemini. Retries busy models, then falls back to the next model."""
+def generate(client: OpenAI, models: list[str], messages: list[dict],
+             system_prompt: str, response_schema: type[pydantic.BaseModel],
+             log=print) -> tuple[pydantic.BaseModel, str]:
+    """Calls Radeon. Retries busy models, then falls back to the next model."""
     last_error: Exception | None = None
     for model_name in models:
         for attempt in range(_ATTEMPTS_PER_MODEL):
             try:
-                return client.models.generate_content(
-                    model=model_name, contents=contents, config=config), model_name
-            except genai_errors.APIError as error:
-                if error.code not in (429, 500, 503, 504):
-                    raise
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        *messages,
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0,
+                    timeout=60,
+                )
+                content = response.choices[0].message.content
+                if not content:
+                    raise RuntimeError(f"{model_name} returned no content.")
+                return response_schema.model_validate_json(content), model_name
+            except APIStatusError as error:
+                status = error.status_code
+                if status not in (429, 500, 503, 504):
+                    raise RuntimeError(
+                        f"Radeon API error {status}: {error}") from error
                 last_error = error
                 wait = 2 ** attempt * 5
-                log(f"  {model_name} busy ({error.code}), retry in {wait} s")
+                log(f"  {model_name} busy ({status}), retry in {wait} s")
                 time.sleep(wait)
+            except APIError as error:
+                last_error = error
+                raise RuntimeError(f"Radeon API error: {error}") from error
     raise RuntimeError(f"All models busy: {last_error}")
 
 
-def read(path: str, data: model.LaunchData, client: genai.Client,
+def read(path: str, data: model.LaunchData, client: OpenAI,
          models: list[str], log=print) -> dict:
-    """Reads one document with Gemini and stores the result."""
+    """Reads one document with Radeon and stores the result."""
     local = portal.CURRENT_DIR / path
     sha = _sha(local)
     cached = _cache_path(sha)
     if cached.exists():
         return json.loads(cached.read_text(encoding="utf-8"))
 
-    response, model_name = generate(
+    parsed, model_name = generate(
         client, models,
-        contents=[*content_parts(local),
-                  types.Part.from_text(text=f"File path: {path}\nExtract the facts.")],
-        config=types.GenerateContentConfig(
-            system_instruction=_system_prompt(data),
-            response_mime_type="application/json",
-            response_schema=DocumentFacts,
-        ),
+        messages=[{"role": "user",
+                   "content": [
+                       *content_parts(local),
+                       {"type": "text",
+                        "text": f"File path: {path}\n"
+                                "Extract the facts.\n"
+                                "Return JSON that matches this schema:\n"
+                                f"{json.dumps(DocumentFacts.model_json_schema())}"}
+                   ]}],
+        system_prompt=_system_prompt(data),
+        response_schema=DocumentFacts,
         log=log,
     )
-    parsed = response.parsed
-    if not isinstance(parsed, DocumentFacts):
-        reason = (response.candidates[0].finish_reason
-                  if response.candidates else response.prompt_feedback)
-        raise RuntimeError(f"{path}: no extraction ({reason})")
     result = {"path": path, "sha256": sha, "model": model_name,
               "facts": parsed.model_dump()}
     EXTRACTIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -264,11 +284,13 @@ def read(path: str, data: model.LaunchData, client: genai.Client,
     return result
 
 
-def client_or_none() -> genai.Client | None:
-    """A Gemini client if a key exists, else None (the tower still runs)."""
+def client_or_none() -> OpenAI | None:
+    """A Radeon client if a key exists, else None (the tower still runs)."""
     dotenv.load_dotenv(portal.ROOT / ".env")
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    return genai.Client(api_key=key) if key else None
+    key = os.environ.get("RADEON_API_KEY")
+    if not key:
+        return None
+    return OpenAI(api_key=key, base_url=RADEON_BASE_URL, timeout=60)
 
 
 def read_pending(limit: int | None = None, match: str | None = None,
@@ -276,7 +298,7 @@ def read_pending(limit: int | None = None, match: str | None = None,
     """Reads every document that has no stored extraction yet."""
     client = client_or_none()
     if client is None:
-        raise RuntimeError("No Gemini key. Set GEMINI_API_KEY in .env.")
+        raise RuntimeError("No Radeon key. Set RADEON_API_KEY in .env.")
     data = model.build()
     models = pick_models(client)
     log(f"models: {', '.join(models)}")
@@ -306,6 +328,6 @@ def read_pending(limit: int | None = None, match: str | None = None,
             try:
                 done.append(future.result())
                 log(f"read {len(done)}/{len(pending)}: {path}")
-            except (genai_errors.APIError, RuntimeError, ValueError) as error:
+            except (APIError, RuntimeError, ValueError) as error:
                 log(f"  failed {path}: {error}")
     return done

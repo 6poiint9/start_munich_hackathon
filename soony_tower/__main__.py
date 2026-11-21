@@ -2,11 +2,13 @@
 
 python -m soony_tower sync      pull new files from the portal
 python -m soony_tower report    print forecast and risks
-python -m soony_tower read      let Gemini read documents not read yet
+python -m soony_tower read      let Radeon read documents not read yet
 python -m soony_tower watch     sync every few minutes, read new documents, print changes
 python -m soony_tower serve     start the cockpit and HTTP API on port 8000
-python -m soony_tower drafts    let Gemini write supplier mails for open risks (not sent)
+python -m soony_tower drafts    let Radeon write supplier mails for open risks (not sent)
 python -m soony_tower inbox     fetch and read supplier replies
+python -m soony_tower models    list models available from Radeon
+python -m soony_tower ping      test the Radeon endpoint
 """
 
 import argparse
@@ -39,7 +41,11 @@ def _print_report(status: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="soony_tower")
-    parser.add_argument("command", choices=["sync", "report", "read", "watch", "serve", "drafts", "inbox"])
+    parser.add_argument(
+        "command",
+        choices=["sync", "report", "read", "watch", "serve", "drafts",
+                 "inbox", "models", "ping"],
+    )
     parser.add_argument("--at", help="replay a moment, e.g. 2026-11-21T17:00")
     parser.add_argument("--limit", type=int, help="read at most N documents")
     parser.add_argument("--match", help="read only paths that contain this text")
@@ -52,6 +58,22 @@ def main() -> int:
     if args.command == "sync":
         for change in portal.sync():
             print(f"{change.kind:9} {change.path}")
+    elif args.command == "models":
+        client = documents.client_or_none()
+        if client is None:
+            raise RuntimeError("No Radeon key. Set RADEON_API_KEY in .env.")
+        for model_name in documents.list_models(client):
+            print(model_name)
+    elif args.command == "ping":
+        client = documents.client_or_none()
+        if client is None:
+            raise RuntimeError("No Radeon key. Set RADEON_API_KEY in .env.")
+        models = documents.pick_models(client)
+        response = client.chat.completions.create(
+            model=models[0],
+            messages=[{"role": "user", "content": "Reply with exactly: pong"}],
+        )
+        print(f"{models[0]}: {response.choices[0].message.content}")
     elif args.command == "read":
         documents.read_pending(limit=args.limit, match=args.match)
     elif args.command == "report":

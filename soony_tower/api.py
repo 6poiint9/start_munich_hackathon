@@ -5,7 +5,7 @@ Start it with: python -m soony_tower serve
 On a server, set these environment variables:
   COCKPIT_PASSWORD   turns on a browser login (user name: COCKPIT_USER, default "soony")
   SYNC_EVERY         seconds between portal syncs in the background (default 0 = off)
-  DOC_READS_PER_SYNC documents Gemini reads after each sync, most important first (default 3)
+  DOC_READS_PER_SYNC documents Radeon reads after each sync, most important first (default 3)
   MAIL_AUTODRAFT     "0" stops the automatic supplier mail drafts for new risks
 """
 
@@ -43,7 +43,7 @@ def _has_data() -> bool:
 
 
 def _cycle() -> dict:
-    """Sync, let Gemini read a few documents, recompute and remember risks."""
+    """Sync, let Radeon read a few documents, recompute and remember risks."""
     with _lock:
         result = engine.run(do_sync=True, remember=True)
         changed = result["file_changes"]
@@ -178,7 +178,7 @@ def _mail_call(action, *args, **kwargs):
         raise fastapi.HTTPException(status_code=404, detail="No such mail") from error
     except mail.MailError as error:
         raise fastapi.HTTPException(status_code=409, detail=str(error)) from error
-    except RuntimeError as error:  # every Gemini model busy
+    except RuntimeError as error:  # every Radeon model is busy
         raise fastapi.HTTPException(status_code=503, detail=str(error)) from error
 
 
@@ -192,7 +192,7 @@ def mail_list() -> dict:
 
 @app.post("/api/mail/draft")
 def mail_draft() -> list[dict]:
-    """Lets Gemini write drafts for open risks that no mail covers yet."""
+    """Lets Radeon write drafts for open risks that no mail covers yet."""
     if not _latest and not _has_data():
         raise _no_data_yet()
     current = _latest or engine.run(do_sync=False, remember=False)
