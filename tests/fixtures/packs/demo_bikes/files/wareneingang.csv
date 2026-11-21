@@ -1,0 +1,5 @@
+beleg;datum;bestellung;position;lieferant;teil;bestellt;gebucht;lieferschein;bemerkung
+WE-1001;20.02.2027;BE-2001;1;LIEF-A;RAHMEN-01;100;1.000;LS-77;
+WE-1002;21.02.2027;BE-2002;1;LIEF-B;SATTEL-02;500;300;LS-78;Teillieferung
+WE-1003;22.02.2027;BE-2002;1;LIEF-B;SATTEL-02;500;200;LS-79;
+WE-1004;10.02.2027;BE-2003;1;LIEF-C;KLINGEL-03;600;600;LS-70;

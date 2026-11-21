@@ -1,0 +1,8 @@
+rules:
+  - {id: po_value, applies_to: purchase_order, tiers: [
+      {lt_eur: 10000, role: buyer}, {role: category_lead}]}
+  - {id: erp_write, applies_to: erp_correction, role: erp_owner}
+  - {id: dock_slot, applies_to: inbound_delivery, add_role: site_lead}
+  - {id: vacant_role, fallback_role: category_lead}
+escalation: [buyer, category_lead]
+source: "erfunden"

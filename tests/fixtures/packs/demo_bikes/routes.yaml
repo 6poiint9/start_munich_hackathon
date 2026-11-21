@@ -1,0 +1,32 @@
+routes:
+  - {match: "produkte.csv", parser: table, kind: products, doc_class: master_data,
+     columns: {modell: product_id, bezeichnung: description}}
+  - {match: "teile.csv", parser: table, kind: components, doc_class: master_data,
+     columns: {teil: component_id, bezeichnung: description, freigabe_rev: released_rev}}
+  - {match: "stueckliste.csv", parser: table, kind: bom, doc_class: master_data,
+     columns: {modell: product_id, teil: component_id, menge_je: qty_per}}
+  - {match: "bedarf.csv", parser: table, kind: demand, doc_class: master_data,
+     columns: {modell: product_id, klasse: demand_class, stueck: units, termin: due_at}}
+  - {match: "bestand.csv", parser: table, kind: stock, doc_class: erp_stock,
+     columns: {artikel: component_id, menge: qty, stand: as_of, letzte_zaehlung: last_count, charge: batch}}
+  - {match: "bestellungen.csv", parser: table, kind: purchase_orders, doc_class: erp_movement,
+     columns: {bestellung: po_number, position: po_line, lieferant: supplier_id, teil: component_id,
+               menge: qty, preis: unit_price, zugesagt: eta, revision: rev, einkaeufer: buyer}}
+  - {match: "wareneingang.csv", parser: table, kind: goods_receipts, doc_class: erp_movement,
+     columns: {beleg: ref, datum: doc_date, bestellung: po_number, position: po_line, lieferant: supplier_id,
+               teil: component_id, bestellt: qty_ordered, gebucht: qty, lieferschein: delivery_note, bemerkung: remark}}
+  - {match: "lieferscheine.csv", parser: table, kind: delivery_notes, doc_class: delivery_note,
+     columns: {lieferschein: ref, teil: component_id, menge: qty, gewicht_kg: weight_kg, packstuecke: packages, datum: doc_date}}
+  - {match: "angebote.csv", parser: table, kind: offers, doc_class: offer,
+     columns: {lieferant: supplier_id, teil: component_id, menge: qty, preis: unit_price,
+               gueltig_bis: valid_until, lieferzeit_stunden: lead_time_hours}}
+  - {match: "vertraege.csv", parser: table, kind: validity, doc_class: contract,
+     columns: {lieferant: supplier_id, gegenstand: subject, gueltig_bis: valid_until, teil: component_id}}
+  - {match: "lieferanten.csv", parser: table, kind: suppliers, doc_class: master_data,
+     columns: {lieferant: supplier_id, ansprechpartner: contact_name, mail: email, sprache: language, freigabe: release_status}}
+  - {match: "teile_lieferanten.csv", parser: table, kind: supplier_parts, doc_class: master_data,
+     columns: {lieferant: supplier_id, teil: component_id, preis: unit_price, hinweis: note}}
+  - {match: "personen.csv", parser: table, kind: person_roles, doc_class: master_data,
+     columns: {kuerzel: person_id, rolle: role, kategorie: category}}
+  - {match: "*.txt", parser: document, doc_class: notice, priority: 1}
+default: {parser: document, priority: 3}

@@ -1,0 +1,5 @@
+bestellung;position;lieferant;teil;menge;preis;zugesagt;revision;status;einkaeufer
+BE-2001;1;LIEF-A;RAHMEN-01;100;42,00;20.02.2027;A;delivered;Anna Beispiel
+BE-2002;1;LIEF-B;SATTEL-02;500;9,50;22.02.2027;C;delivered;Anna Beispiel
+BE-2003;1;LIEF-C;KLINGEL-03;600;1,20;10.02.2027;A;delivered;Anna Beispiel
+BE-2004;1;LIEF-B;SATTEL-02;200;9,50;20.03.2027;B;open;Anna Beispiel

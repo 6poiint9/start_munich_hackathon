@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lineguard"
+version = "0.1.0"
+description = "Keeps a line with a fixed deadline running: stock truth, booking check, supplier actions."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.165.0",
+    "httpx==0.28.1",
+    "openai==3.57.0",
+    "openpyxl==3.1.5",
+    "pydantic==2.14.4",
+    "python-docx==1.2.0",
+    "PyYAML==6.0.4",
+    "uvicorn==0.54.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0", "ruff==0.17.6"]
+
+[tool.setuptools.packages.find]
+include = ["lineguard*"]
+
+[tool.setuptools.package-data]
+lineguard = ["prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "customer_data: needs the frozen customer snapshot, which is not in the repository",
+]
+
+[tool.ruff]
+line-length = 80
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+force-sort-within-sections = true
+single-line-exclusions = ["typing", "collections.abc"]
+
+[tool.pylint.main]
+ignore-paths = ["^tests/.*$", "^web/.*$"]
+
+[tool.pylint."messages control"]
+# Size limits are judged in review. Line length is the job of ruff.
+disable = [
+    "line-too-long", "too-many-instance-attributes", "too-many-locals",
+    "too-many-branches", "too-many-statements", "too-many-arguments",
+    "too-many-positional-arguments", "too-few-public-methods",
+    "invalid-name", "import-error", "duplicate-code",
+    "too-many-return-statements",
+]
+
+[tool.pylint.basic]
+# Short functions and protocol methods explain themselves by name and types.
+docstring-min-length = 8
