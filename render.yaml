@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: soony-launch-control
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /healthz
+    envVars:
+      - key: LIO_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MAIL_ADDRESS
+        sync: false
+      - key: MAIL_APP_PASSWORD
+        sync: false
+      - key: COCKPIT_PASSWORD
+        generateValue: true
+      - key: LIO_BASE_URL
+        value: https://start-hack-portal-cxh3crbdaef2f8gt.westeurope-01.azurewebsites.net

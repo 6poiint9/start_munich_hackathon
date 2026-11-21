@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GH6 Launch Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* A warehouse at night: asphalt, sodium lamps, paper labels on crates. */
+  :root {
+    --asphalt: #0f1113;
+    --floor: #15181b;
+    --crate: #1b1f23;
+    --crate-up: #22272c;
+    --rule: rgba(255, 255, 255, 0.07);
+    --rule-strong: rgba(255, 255, 255, 0.13);
+    --label: #ebe6da;
+    --chalk: #aaa69c;
+    --dust: #75726b;
+    --soot: #4c4a46;
+    --sodium: #f0a13a;
+    --sodium-dim: rgba(240, 161, 58, 0.14);
+    --signal: #ee5a4b;
+    --signal-dim: rgba(238, 90, 75, 0.14);
+    --go: #5fbf8b;
+    --go-dim: rgba(95, 191, 139, 0.14);
+    --sky: #7ea4c6;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --sans: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --r-s: 4px;
+    --r-m: 8px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    margin: 0; background: var(--asphalt); color: var(--label);
+    font: 400 14px/1.45 var(--sans);
+  }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .cap {
+    font: 500 11px/1 var(--mono); letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--dust);
+  }
+  button {
+    font: 600 13px/1 var(--sans); color: var(--label); cursor: pointer;
+    background: var(--crate-up); border: 1px solid var(--rule-strong);
+    border-radius: var(--r-s); padding: 0 14px; height: 36px;
+    transition: background-color 140ms, transform 120ms;
+  }
+  button:hover { background: #2a3036; }
+  button:active { transform: scale(0.97); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--sodium); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: progress; }
+  button.primary { background: var(--sodium); color: #1a1206; border-color: transparent; }
+  button.primary:hover { background: #f5b257; }
+
+  /* Header */
+  header {
+    position: sticky; top: 0; z-index: 5;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px;
+    padding: 12px 24px; background: rgba(15, 17, 19, 0.92);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--rule);
+  }
+  .brand { display: flex; flex-direction: column; gap: 4px; }
+  .brand b { font: 700 15px/1 var(--sans); letter-spacing: 0.02em; }
+  .clock { text-align: center; }
+  .clock .t { font: 600 26px/1 var(--mono); color: var(--sodium); letter-spacing: -0.02em; }
+  .clock .cap { margin-top: 5px; }
+  .head-right { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+  .freshness { text-align: right; font-size: 12px; color: var(--chalk); }
+  .freshness .stale { color: var(--sodium); }
+
+  main { max-width: 1440px; margin: 0 auto; padding: 24px 24px 120px; }
+
+  /* Verdict: the gap between what the plan says and what will happen */
+  .verdict { padding: 8px 0 24px; }
+  .verdict h1 {
+    margin: 10px 0 6px; font: 700 34px/1.1 var(--sans); letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  .verdict h1 em { font-style: normal; color: var(--signal); }
+  .verdict h1 em.ok { color: var(--go); }
+  .verdict p { margin: 0; color: var(--chalk); font-size: 15px; max-width: 72ch; }
+
+  .gap { display: grid; gap: 2px; margin-top: 20px; border-radius: var(--r-m); overflow: hidden; }
+  .gap-head, .gap-row {
+    display: grid; grid-template-columns: minmax(180px, 1.1fr) 0.7fr 0.7fr 2fr; gap: 20px;
+    align-items: center; padding: 14px 18px; background: var(--floor);
+  }
+  .gap-head { padding: 10px 18px; }
+  .gap-row .name b { display: block; font-weight: 600; font-size: 15px; }
+  .gap-row .name span { font-size: 12px; color: var(--dust); }
+  .say { font: 600 22px/1 var(--mono); font-variant-numeric: tabular-nums; }
+  .say small { display: block; margin-top: 6px; font: 400 12px/1.2 var(--sans); color: var(--dust); }
+  .say.system { color: var(--chalk); }
+  .say.bad { color: var(--signal); }
+  .say.good { color: var(--go); }
+  .meter { position: relative; height: 22px; background: var(--crate); border-radius: 3px; overflow: hidden; }
+  .meter .real { position: absolute; inset: 0 auto 0 0; background: var(--go); opacity: 0.85; }
+  .meter .miss {
+    position: absolute; top: 0; bottom: 0;
+    background: repeating-linear-gradient(135deg, var(--signal-dim) 0 6px, transparent 6px 12px);
+    border-left: 2px solid var(--signal);
+  }
+  .meter .plan { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--label); }
+  .meter-legend { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--dust); }
+
+  /* Body grid */
+  .grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; align-items: start; }
+  section.panel { background: var(--floor); border-radius: var(--r-m); padding: 18px; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
+  .panel-head h2 { margin: 0; font: 600 17px/1.2 var(--sans); }
+  .panel + .panel { margin-top: 24px; }
+
+  /* Risks */
+  .risks { display: flex; flex-direction: column; gap: 8px; }
+  .risk {
+    position: relative; background: var(--crate); border-radius: var(--r-s);
+    padding: 12px 14px 12px 18px;
+  }
+  .risk::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    border-radius: var(--r-s) 0 0 var(--r-s); background: var(--soot);
+  }
+  .risk.critical::before { background: var(--signal); }
+  .risk.high::before { background: var(--sodium); }
+  .risk.medium::before { background: var(--sky); }
+  .risk-top { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+  .risk-title { font-weight: 600; font-size: 14.5px; text-wrap: pretty; }
+  .risk-impact { text-align: right; white-space: nowrap; }
+  .risk-impact .num { font-weight: 600; font-size: 15px; }
+  .risk.critical .risk-impact .num { color: var(--signal); }
+  .risk-impact .cap { margin-top: 4px; }
+  .risk-do { margin: 8px 0 0; text-wrap: pretty; }
+  .risk-do .arrow { color: var(--sodium); font-family: var(--mono); }
+  .risk-action { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; height: 20px; padding: 0 7px;
+    border-radius: 3px; font: 500 11px/1 var(--mono); letter-spacing: 0.04em;
+    background: var(--crate-up); color: var(--chalk); white-space: nowrap;
+  }
+  .chip.owner { color: var(--label); }
+  .chip.approve { background: var(--sodium-dim); color: var(--sodium); }
+  .chip.new { background: var(--signal-dim); color: var(--signal); }
+  .chip.sev { text-transform: uppercase; }
+  details.more { margin-top: 8px; }
+  details.more summary {
+    cursor: pointer; list-style: none; font-size: 12px; color: var(--dust);
+    display: inline-flex; gap: 6px; align-items: center; min-height: 24px;
+  }
+  details.more summary::-webkit-details-marker { display: none; }
+  details.more summary::before { content: "+"; font-family: var(--mono); }
+  details.more[open] summary::before { content: "\2212"; }
+  details.more p { margin: 6px 0 8px; color: var(--chalk); text-wrap: pretty; }
+  .evidence { display: flex; flex-wrap: wrap; gap: 6px; }
+  .evidence .chip {
+    color: var(--dust); height: auto; min-height: 20px; padding: 4px 7px;
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.3;
+  }
+  .grid > *, .gap-row > * { min-width: 0; }
+  .risk-top > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .risk-impact { flex-shrink: 0; }
+  .runway { overflow: hidden; }
+  td .desc { overflow-wrap: anywhere; }
+
+  /* Inbound runway */
+  .runway { display: flex; flex-direction: column; }
+  .lane {
+    display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center;
+    min-height: 34px; border-top: 1px solid var(--rule);
+  }
+  .lane:first-child { border-top: 0; }
+  .lane .who { font-size: 12.5px; line-height: 1.25; overflow: hidden; }
+  .lane .who b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lane .who span {
+    display: block; color: var(--dust); font-family: var(--mono); font-size: 11px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .track { position: relative; height: 26px; min-width: 0; }
+  .track .line { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--rule-strong); }
+  .track .deadline, .axis .deadline {
+    position: absolute; top: -4px; bottom: -4px; width: 0;
+    border-left: 2px solid var(--sodium);
+  }
+  .track .now, .axis .now { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--dust); }
+  .dot {
+    position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+    border-radius: 50%; background: var(--go); box-shadow: 0 0 0 3px var(--floor);
+  }
+  .dot.silent { background: transparent; border: 2px solid var(--sodium); }
+  .dot.late { background: var(--signal); }
+  .dot.clamped::after {
+    content: "\25B8"; position: absolute; left: -12px; top: -4px;
+    color: var(--signal); font-size: 12px;
+  }
+  .dot-label {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font: 500 11px/1 var(--mono); color: var(--chalk); white-space: nowrap;
+  }
+  .axis { position: relative; height: 22px; margin-left: 162px; }
+  .axis span { position: absolute; transform: translateX(-50%); font: 500 10.5px/1 var(--mono); color: var(--dust); white-space: nowrap; }
+  .axis .deadline { top: 14px; bottom: -6px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--dust); margin-top: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .later { margin-top: 10px; font-size: 12.5px; color: var(--dust); }
+
+  /* Parts */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: right; padding: 0 0 8px 10px; }
+  th:first-child { text-align: left; padding-left: 0; }
+  td { padding: 9px 0 9px 10px; border-top: 1px solid var(--rule); text-align: right; vertical-align: top; }
+  td:first-child { text-align: left; padding-left: 0; }
+  td .desc { font-weight: 500; }
+  td .sub { font-size: 11.5px; color: var(--dust); font-family: var(--mono); }
+  td .flag { color: var(--sodium); font-size: 12px; }
+  td.short { color: var(--signal); font-weight: 600; }
+  td.fine { color: var(--go); }
+  .cover { height: 4px; background: var(--crate-up); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .cover i { display: block; height: 100%; background: var(--go); }
+  .cover i.short { background: var(--signal); }
+
+  /* Replay bar: move the clock and watch the picture change */
+  .replay {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: grid; grid-template-columns: auto 1fr auto auto; gap: 16px; align-items: center;
+    padding: 12px 24px; background: rgba(21, 24, 27, 0.96); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--rule);
+  }
+  .replay .when { font: 600 14px/1 var(--mono); min-width: 150px; text-align: right; }
+  .replay .when.live { color: var(--go); }
+  input[type=range] { width: 100%; accent-color: var(--sodium); height: 24px; }
+
+  .toast {
+    position: fixed; right: 24px; bottom: 84px; z-index: 6; max-width: 380px;
+    background: var(--crate-up); border-radius: var(--r-m); padding: 12px 14px;
+    box-shadow: 0 0 0 1px var(--rule-strong), 0 12px 30px rgba(0, 0, 0, 0.4);
+    opacity: 0; transform: translateY(6px); pointer-events: none;
+    transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1), transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .toast.show { opacity: 1; transform: none; }
+  .toast.err { box-shadow: 0 0 0 1px var(--signal), 0 12px 30px rgba(0, 0, 0, 0.4); }
+
+  /* Supplier mail: the agent drafts, a person approves */
+  .mail-tools { display: flex; gap: 8px; }
+  .mail-note { margin: -4px 0 12px; font-size: 12.5px; color: var(--dust); }
+  .mail-note.off { color: var(--sodium); }
+  .mails { display: flex; flex-direction: column; gap: 8px; }
+  .mail { background: var(--crate); border-radius: var(--r-s); padding: 12px 14px; }
+  .mail-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .mail-top b { font-weight: 600; }
+  .mail-top .num { font-size: 11.5px; color: var(--dust); }
+  .mail-why { margin: 6px 0 10px; color: var(--chalk); font-size: 13px; text-wrap: pretty; }
+  .mail input, .mail textarea {
+    width: 100%; font: 400 13px/1.5 var(--mono); color: var(--label);
+    background: var(--asphalt); border: 1px solid var(--rule-strong);
+    border-radius: var(--r-s); padding: 8px 10px;
+  }
+  .mail input { margin-bottom: 6px; font-weight: 500; }
+  .mail textarea { min-height: 190px; resize: vertical; }
+  .mail-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .mail-reply { margin-top: 8px; padding: 10px 12px; border-left: 2px solid var(--go); background: var(--floor); border-radius: 0 var(--r-s) var(--r-s) 0; }
+  .mail-reply.bad { border-left-color: var(--signal); }
+  .mail-reply p { margin: 0 0 6px; text-wrap: pretty; }
+  .mail-body-sent { white-space: pre-wrap; font: 400 12.5px/1.5 var(--mono); color: var(--chalk); margin: 8px 0 0; }
+  .chip.mail-draft { background: var(--sodium-dim); color: var(--sodium); }
+  .chip.mail-sent { background: rgba(126, 164, 198, 0.15); color: var(--sky); }
+  .chip.mail-answered { background: var(--go-dim); color: var(--go); }
+
+  .loading main { opacity: 0.55; transition: opacity 150ms; }
+  .empty { color: var(--dust); padding: 24px 0; text-align: center; }
+
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: 1fr; }
+    .gap-head { display: none; }
+    .gap-row { grid-template-columns: 1fr 1fr; }
+    .gap-row .name, .gap-row .meter-wrap { grid-column: 1 / -1; }
+  }
+  @media (max-width: 640px) {
+    header { grid-template-columns: 1fr auto; padding: 10px 16px; }
+    .head-right .freshness { display: none; }
+    .clock { text-align: right; }
+    .clock .t { font-size: 20px; }
+    .head-right { grid-column: 1 / -1; justify-content: stretch; }
+    .head-right button { flex: 1; }
+    main { padding: 16px 16px 140px; }
+    .verdict h1 { font-size: 26px; }
+    .lane { grid-template-columns: 96px 1fr; }
+    .axis { margin-left: 108px; }
+    .replay { grid-template-columns: 1fr auto; padding: 10px 16px; }
+    .replay .cap { display: none; }
+    .replay input { grid-column: 1 / -1; order: -1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="cap">Soony · Grand Heist 6</span>
+    <b>Launch Control Tower</b>
+  </div>
+  <div class="clock">
+    <div class="t num" id="countdown">--:--</div>
+    <div class="cap" id="deadline-label">until packing closes</div>
+  </div>
+  <div class="head-right">
+    <div class="freshness" id="freshness"></div>
+    <button class="primary" id="sync-btn" type="button">Sync portal</button>
+  </div>
+</header>
+
+<main>
+  <section class="verdict">
+    <div class="cap">Verdict</div>
+    <h1 id="verdict">Reading the launch data…</h1>
+    <p id="verdict-sub"></p>
+    <div class="gap" id="gap"></div>
+  </section>
+
+  <div class="grid">
+    <div>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>What breaks first</h2>
+        <span class="cap" id="risk-count"></span>
+      </div>
+      <div class="risks" id="risks"></div>
+    </section>
+
+    <section class="panel" id="mail-panel">
+      <div class="panel-head">
+        <h2>Supplier mail</h2>
+        <span class="mail-tools">
+          <button type="button" id="draft-btn">Write drafts</button>
+          <button type="button" id="poll-btn">Check inbox</button>
+        </span>
+      </div>
+      <p class="mail-note" id="mail-note"></p>
+      <div class="mails" id="mails"></div>
+    </section>
+    </div>
+
+    <div>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Inbound runway</h2>
+          <span class="cap">arrival at DC-HAM</span>
+        </div>
+        <div class="axis" id="axis"></div>
+        <div class="runway" id="runway"></div>
+        <div class="legend">
+          <span><i style="background:var(--go)"></i>in time</span>
+          <span><i style="border:2px solid var(--sodium)"></i>silent, not counted</span>
+          <span><i style="background:var(--signal)"></i>too late</span>
+          <span><i style="background:var(--sodium);border-radius:0;width:2px"></i>packing closes</span>
+        </div>
+        <div class="later" id="later"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Parts for the launch</h2>
+          <span class="cap">realistic</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th class="cap">Part</th><th class="cap">Need</th>
+            <th class="cap">Have</th><th class="cap">Gap</th>
+          </tr></thead>
+          <tbody id="parts"></tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div class="replay">
+  <span class="cap">Replay</span>
+  <input type="range" id="replay" aria-label="Replay the forecast at a past or future moment">
+  <span class="when num live" id="replay-when">Live</span>
+  <button type="button" id="live-btn">Back to live</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+const TZ = "Europe/Berlin";
+const nf = new Intl.NumberFormat("en-US", {maximumFractionDigits: 0});
+const timeFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: TZ, weekday: "short", day: "2-digit", month: "short",
+  hour: "2-digit", minute: "2-digit"});
+const shortFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit"});
+const $ = (id) => document.getElementById(id);
+
+// Text from supplier documents is untrusted: escape everything we insert.
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+const n = (v) => nf.format(Math.round(Number(v) || 0));
+const t = (iso) => iso ? timeFmt.format(new Date(iso)) : "unknown";
+
+let replayAt = null;  // null means live
+let lastStatus = null;
+
+function hoursBetween(a, b) {
+  return (new Date(b) - new Date(a)) / 36e5;
+}
+
+function renderClock(s) {
+  const h = hoursBetween(s.at, s.deadline);
+  const sign = h < 0 ? "+" : "−";
+  const abs = Math.abs(h);
+  const hh = Math.floor(abs);
+  const mm = Math.floor((abs - hh) * 60);
+  $("countdown").textContent = `T${sign}${hh}h ${String(mm).padStart(2, "0")}m`;
+  $("deadline-label").textContent = `until packing closes · ${t(s.deadline)}`;
+  const snapAge = hoursBetween(s.stock_snapshot_as_of, s.at);
+  $("freshness").innerHTML =
+    `As of ${esc(t(s.at))}<br><span class="${snapAge > 24 ? "stale" : ""}">` +
+    `ERP stock from ${esc(t(s.stock_snapshot_as_of))}</span>`;
+}
+
+function renderVerdict(s) {
+  const missing = s.products.map((p) => ({
+    p, short: Math.max(0, p.remaining - p.forecast_realistic)}));
+  const total = missing.reduce((a, m) => a + m.short, 0);
+  const planOk = s.products.every((p) => p.forecast_plan >= p.remaining);
+  const worst = missing.filter((m) => m.short > 0).sort((a, b) => b.short - a.short);
+  if (total > 0) {
+    const names = worst.map((m) => shortName(m.p.name)).join(" and ");
+    $("verdict").innerHTML =
+      `${esc(names)} will miss <em class="num">${n(total)}</em> copies.`;
+  } else {
+    $("verdict").innerHTML = `All editions are <em class="ok">on track</em> for the launch.`;
+  }
+  $("verdict-sub").textContent = planOk && total > 0
+    ? "The launch plan says everything is fine. The tower takes away parts already used since the stock snapshot, parts with the wrong revision, and shipments that cannot reach Hamburg in time."
+    : "Plan and tower forecast are computed from the same portal files.";
+
+  const rows = s.products.map((p) => {
+    const max = Math.max(p.remaining, p.forecast_plan, 1);
+    const real = Math.min(p.forecast_realistic, p.remaining);
+    const realPct = (real / max) * 100;
+    const missPct = ((p.remaining - real) / max) * 100;
+    const planPct = Math.min(p.forecast_plan / max, 1) * 100;
+    const bad = p.forecast_realistic < p.remaining;
+    return `<div class="gap-row">
+      <div class="name"><b>${esc(shortName(p.name))}</b>
+        <span class="num">${esc(p.product_id)} · ${n(p.remaining)} to pack</span></div>
+      <div class="say system">${n(p.forecast_plan)}<small>packed by deadline</small></div>
+      <div class="say ${bad ? "bad" : "good"}">${n(p.forecast_realistic)}
+        <small>${bad ? "limited by " + esc(p.limiting_factor) : "enough parts and line time"}</small></div>
+      <div class="meter-wrap">
+        <div class="meter" role="img" aria-label="${n(real)} of ${n(p.remaining)} can be packed">
+          <div class="real" style="width:${realPct}%"></div>
+          ${missPct > 0 ? `<div class="miss" style="left:${realPct}%;width:${missPct}%"></div>` : ""}
+          <div class="plan" style="left:calc(${planPct}% - 1px)" title="What the plan says"></div>
+        </div>
+        <div class="meter-legend"><span>packed ${n(p.packed)} of ${n(p.day_one_qty)}</span>
+          <span>line: ${n(p.rate_per_hour)}/h · ${Number(p.hours_left).toFixed(0)} h left</span></div>
+      </div>
+    </div>`;
+  }).join("");
+  $("gap").innerHTML = `<div class="gap-head">
+      <span class="cap">Edition</span><span class="cap">The plan says</span>
+      <span class="cap">The tower says</span><span class="cap">Still to pack</span>
+    </div>${rows}`;
+}
+
+function shortName(name) {
+  const m = /[–—-]\s*(.+?)(\s*\(|$)/.exec(name || "");
+  return m ? m[1] : name;
+}
+
+function renderRisks(s) {
+  const fresh = new Set(s.risk_changes?.new || []);
+  const critical = s.risks.filter((r) => r.severity === "critical").length;
+  $("risk-count").textContent = `${s.risks.length} open · ${critical} critical`;
+  if (!s.risks.length) {
+    $("risks").innerHTML = `<div class="empty">No open risks.</div>`;
+    return;
+  }
+  $("risks").innerHTML = s.risks.map((r) => `
+    <article class="risk ${esc(r.severity)}">
+      <div class="risk-top">
+        <div>
+          <div class="risk-title">${esc(r.title)}</div>
+        </div>
+        <div class="risk-impact">
+          ${r.impact_copies > 0
+            ? `<div class="num">${n(r.impact_copies)}</div><div class="cap">copies at risk</div>`
+            : `<span class="chip sev">${esc(r.severity)}</span>`}
+        </div>
+      </div>
+      <p class="risk-do"><span class="arrow">&rarr;</span> ${esc(r.action)}</p>
+      <div class="risk-action">
+        <span class="chip owner">${esc(r.owner)}</span>
+        ${r.needs_approval ? `<span class="chip approve">needs approval</span>` : ""}
+        ${fresh.has(r.id) ? `<span class="chip new">new</span>` : ""}
+        ${mailState[r.id] ? `<span class="chip mail-${esc(mailState[r.id])}">${
+          {draft: "mail draft ready", sent: "supplier asked", answered: "supplier answered"}[mailState[r.id]] || ""}</span>` : ""}
+      </div>
+      <details class="more">
+        <summary>Why the tower thinks so</summary>
+        <p>${esc(r.detail)}</p>
+        <div class="evidence">${(r.evidence || []).map((e) =>
+          `<span class="chip">${esc(e)}</span>`).join("")}</div>
+      </details>
+    </article>`).join("");
+}
+
+function renderRunway(s) {
+  const names = Object.fromEntries(s.components.map((c) => [c.material_id, c.description]));
+  const start = new Date(s.at).getTime() - 12 * 36e5;
+  const end = new Date(s.deadline).getTime() + 18 * 36e5;
+  const pos = (ms) => Math.min(Math.max((ms - start) / (end - start), 0), 1) * 100;
+  const deadlinePct = pos(new Date(s.deadline).getTime());
+  const nowPct = pos(new Date(s.at).getTime());
+
+  const shown = [];
+  let later = 0;
+  const needed = new Set(s.components.filter((c) => c.need > 0).map((c) => c.material_id));
+  for (const i of s.inbound) {
+    if (!needed.has(i.material_id)) continue;
+    const arrival = i.arrival_at_dc ? new Date(i.arrival_at_dc).getTime() : null;
+    if (arrival === null || arrival > end + 48 * 36e5) { later += 1; continue; }
+    shown.push({...i, arrival});
+  }
+  shown.sort((a, b) => a.arrival - b.arrival);
+
+  const ticks = [];
+  // One tick per day at midnight Berlin time (23:00 UTC in November).
+  const day = 24 * 36e5;
+  for (let ms = Math.ceil((start - 23 * 36e5) / day) * day + 23 * 36e5; ms <= end; ms += day) {
+    ticks.push(`<span style="left:${pos(ms)}%">${esc(shortFmt.format(new Date(ms)))}</span>`);
+  }
+  $("axis").innerHTML = ticks.join("") +
+    `<div class="deadline" style="left:${deadlinePct}%"></div>`;
+
+  $("runway").innerHTML = shown.length ? shown.map((i) => {
+    const cls = !i.in_time ? "late" : i.is_silent ? "silent" : "";
+    const clamped = i.arrival > end;
+    const p = pos(i.arrival);
+    const labelLeft = p > 70;
+    const why = i.is_silent ? `silent ${Math.round(i.silent_hours)} h` : i.status.replace(/_/g, " ");
+    return `<div class="lane">
+      <div class="who"><b title="${esc(names[i.material_id] || i.material_id)}">${esc(names[i.material_id] || i.material_id)}</b>
+        <span>${n(i.quantity)} · ${esc(i.mode)} · ${esc(i.supplier_id)}</span></div>
+      <div class="track" title="${esc(i.reference || i.shipment_id)}: ${esc(why)}, at DC ${esc(t(i.arrival_at_dc))}">
+        <div class="line"></div>
+        <div class="now" style="left:${nowPct}%"></div>
+        <div class="deadline" style="left:${deadlinePct}%"></div>
+        <div class="dot ${cls} ${clamped ? "clamped" : ""}" style="left:${p}%"></div>
+        <span class="dot-label" style="${labelLeft ? `right:${100 - p + 2}%` : `left:calc(${p}% + 12px)`}">${esc(why)}</span>
+      </div>
+    </div>`;
+  }).join("") : `<div class="empty">No shipments close to the launch.</div>`;
+  $("later").textContent = later
+    ? `${later} more shipments arrive days after the launch and do not help.` : "";
+}
+
+function renderParts(s) {
+  const parts = s.components.filter((c) => c.need > 0)
+    // A part that the supplier builds into another part is not ordered alone.
+    .map((c) => ({...c, gap: c.embedded_in ? 0 : c.available_realistic - c.need}))
+    .sort((a, b) => a.gap - b.gap);
+  $("parts").innerHTML = parts.map((c) => {
+    const pct = c.embedded_in ? 100
+      : Math.max(0, Math.min(c.available_realistic / c.need, 1)) * 100;
+    const flags = [];
+    if (c.revision_blocked) flags.push(`wrong revision on stock`);
+    if (c.embedded_in) flags.push(`built into ${c.embedded_in}`);
+    if (c.used_since_snapshot > 0) flags.push(`${n(c.used_since_snapshot)} used since snapshot`);
+    return `<tr>
+      <td><div class="desc">${esc(c.description)}</div>
+        <div class="sub">${esc(c.material_id)}${flags.length
+          ? ` · <span class="flag">${esc(flags.join(" · "))}</span>` : ""}</div>
+        <div class="cover"><i class="${c.gap < 0 ? "short" : ""}" style="width:${pct}%"></i></div></td>
+      <td class="num">${n(c.need)}</td>
+      <td class="num">${n(c.available_realistic)}</td>
+      <td class="num ${c.gap < 0 ? "short" : "fine"}">${c.gap < 0 ? "−" + n(-c.gap) : "ok"}</td>
+    </tr>`;
+  }).join("");
+}
+
+let mailState = {};  // risk id -> draft | sent | answered
+let mailConfigured = false;
+const draftEdits = {};  // keeps unsent edits when the page refreshes
+
+$("mails").addEventListener("input", (event) => {
+  const card = event.target.closest(".mail[data-id]");
+  if (!card) return;
+  draftEdits[card.dataset.id] = {
+    subject: card.querySelector(".subject").value,
+    body: card.querySelector(".body").value};
+});
+
+function renderMail(m) {
+  if ($("mails").contains(document.activeElement) &&
+      document.activeElement.matches("input, textarea")) {
+    return;  // do not redraw under the cursor of someone who is typing
+  }
+  mailConfigured = m.configured;
+  mailState = {};
+  for (const msg of m.messages) {
+    if (msg.status !== "discarded") mailState[msg.risk_id] = msg.status;
+  }
+  const note = $("mail-note");
+  note.className = "mail-note" + (m.configured ? "" : " off");
+  note.textContent = m.configured
+    ? "The agent writes drafts for new risks. Nothing is sent until a person approves it."
+    : "Sending is off: MAIL_ADDRESS and MAIL_APP_PASSWORD are not set. You can still read and edit the drafts.";
+  const titles = Object.fromEntries((lastStatus?.risks || []).map((r) => [r.id, r.title]));
+  const order = {draft: 0, answered: 1, sent: 2};
+  const shown = m.messages.filter((x) => x.status !== "discarded")
+    .sort((a, b) => order[a.status] - order[b.status]);
+  const unmatched = m.unmatched.map((r) => ({status: "unmatched", replies: [r],
+    supplier_name: r.from, subject: r.subject}));
+  const all = [...shown, ...unmatched];
+  if (!all.length) {
+    $("mails").innerHTML = `<div class="empty">No supplier mail yet.</div>`;
+    return;
+  }
+  $("mails").innerHTML = all.map((x) => {
+    const head = `<div class="mail-top"><b>${esc(x.supplier_name)}</b>
+      <span class="num">${esc(x.to || "")}</span></div>
+      ${x.risk_id ? `<p class="mail-why">${esc(titles[x.risk_id] || x.risk_id)}. ${esc(x.reason || "")}</p>` : ""}`;
+    if (x.status === "draft") {
+      const edit = draftEdits[x.id] || {};
+      return `<article class="mail" data-id="${esc(x.id)}">${head}
+        <input class="subject" value="${esc(edit.subject ?? x.subject)}" aria-label="Subject">
+        <textarea class="body" aria-label="Mail text">${esc(edit.body ?? x.body)}</textarea>
+        <div class="mail-actions">
+          <button class="primary send" type="button" ${mailConfigured ? "" : "disabled"}>Approve and send</button>
+          <button class="discard" type="button">Discard</button>
+          ${x.commits_money ? `<span class="chip approve">commits money</span>` : ""}
+        </div></article>`;
+    }
+    const replies = (x.replies || []).map((r) => {
+      const a = r.analysis;
+      const tags = [a.resolves_risk ? "closes the risk" : "", a.suspicious ? "suspicious" : "",
+        a.needs_approval ? "needs approval" : "", a.tracking_number ? `tracking ${a.tracking_number}` : "",
+        a.new_eta ? `new ETA ${t(a.new_eta)}` : ""].filter(Boolean);
+      return `<div class="mail-reply ${a.suspicious ? "bad" : ""}">
+        <div class="cap">Reply · ${esc(t(r.received_at))}</div>
+        <p>${esc(a.summary)}</p>
+        <p>&rarr; ${esc(a.recommended_action)}</p>
+        <div class="evidence">${tags.map((g) => `<span class="chip">${esc(g)}</span>`).join("")}</div>
+      </div>`;
+    }).join("");
+    const state = x.status === "sent" ? `Sent ${esc(t(x.sent_at))}, waiting for the answer`
+      : x.status === "unmatched" ? "Mail without a matching question" : `Answered`;
+    return `<article class="mail">${head}
+      <div class="cap">${state}</div>
+      ${x.body ? `<details class="more"><summary>${esc(x.subject)}</summary>
+        <div class="mail-body-sent">${esc(x.body)}</div></details>` : ""}
+      ${replies}</article>`;
+  }).join("");
+}
+
+async function loadMail() {
+  try {
+    renderMail(await call("/api/mail"));
+    if (lastStatus) renderRisks(lastStatus);
+  } catch (error) {
+    toast(`Could not load the mail: ${error.message}`, true);
+  }
+}
+
+$("mails").addEventListener("click", async (event) => {
+  const card = event.target.closest(".mail[data-id]");
+  if (!card) return;
+  const id = card.dataset.id;
+  if (event.target.classList.contains("send")) {
+    const subject = card.querySelector(".subject").value;
+    const body = card.querySelector(".body").value;
+    const to = card.querySelector(".mail-top .num").textContent;
+    if (!confirm(`Send this mail to ${to} now?`)) return;
+    try {
+      await call(`/api/mail/${encodeURIComponent(id)}/send`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({subject, body})});
+      toast(`Sent to ${to}.`);
+    } catch (error) {
+      toast(`Not sent: ${error.message}`, true);
+    }
+    loadMail();
+  } else if (event.target.classList.contains("discard")) {
+    await call(`/api/mail/${encodeURIComponent(id)}/discard`, {method: "POST"})
+      .catch((error) => toast(error.message, true));
+    loadMail();
+  }
+});
+
+async function mailAction(button, url, busyText, done) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = busyText;
+  try {
+    toast(done(await call(url, {method: "POST"})));
+    await load();
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+$("draft-btn").addEventListener("click", (e) => mailAction(e.target, "/api/mail/draft",
+  "Writing…", (d) => d.length ? `${d.length} new drafts.` : "Every open risk already has a mail."));
+$("poll-btn").addEventListener("click", (e) => mailAction(e.target, "/api/mail/poll",
+  "Checking…", (d) => d.new_replies ? `${d.new_replies} new replies.` : "No new replies."));
+
+function render(s) {
+  lastStatus = s;
+  renderClock(s);
+  renderVerdict(s);
+  renderRisks(s);
+  renderRunway(s);
+  renderParts(s);
+  setupReplay(s);
+  loadMail();
+}
+
+let toastTimer = null;
+function toast(text, isError = false) {
+  const el = $("toast");
+  el.textContent = text;
+  el.classList.toggle("err", isError);
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 6000);
+}
+
+async function call(url, options) {
+  document.body.classList.add("loading");
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || `HTTP ${response.status}`);
+    }
+    return await response.json();
+  } finally {
+    document.body.classList.remove("loading");
+  }
+}
+
+function query() {
+  return replayAt ? `?at=${encodeURIComponent(new Date(replayAt).toISOString())}` : "";
+}
+
+async function load() {
+  try {
+    render(await call(`/api/status${query()}`));
+  } catch (error) {
+    toast(`Could not load the status: ${error.message}`, true);
+    setTimeout(load, 15000);  // for example while the first sync runs
+  }
+}
+
+async function sync() {
+  const btn = $("sync-btn");
+  btn.disabled = true;
+  btn.textContent = "Syncing…";
+  try {
+    const s = await call(`/api/sync${query()}`, {method: "POST"});
+    render(s);
+    const files = s.file_changes?.length || 0;
+    const c = s.risk_changes || {};
+    toast(files
+      ? `${files} files changed. Risks: ${c.new?.length || 0} new, ${c.worse?.length || 0} worse, ${c.resolved?.length || 0} resolved.`
+      : "The portal has no new files.");
+  } catch (error) {
+    toast(`Sync failed: ${error.message}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Sync portal";
+  }
+}
+
+let replayReady = false;
+function setupReplay(s) {
+  if (replayReady) return;
+  replayReady = true;
+  const deadline = new Date(s.deadline).getTime();
+  const slider = $("replay");
+  slider.min = String(deadline - 40 * 36e5);
+  slider.max = String(deadline);
+  slider.step = String(15 * 60 * 1000);
+  slider.value = String(Math.min(Math.max(new Date(s.at).getTime(), +slider.min), deadline));
+}
+
+let replayTimer = null;
+$("replay").addEventListener("input", (event) => {
+  replayAt = Number(event.target.value);
+  const when = $("replay-when");
+  when.textContent = timeFmt.format(new Date(replayAt));
+  when.classList.remove("live");
+  clearTimeout(replayTimer);
+  replayTimer = setTimeout(load, 250);
+});
+$("live-btn").addEventListener("click", () => {
+  replayAt = null;
+  $("replay-when").textContent = "Live";
+  $("replay-when").classList.add("live");
+  replayReady = false;
+  load();
+});
+$("sync-btn").addEventListener("click", sync);
+
+load();
+setInterval(() => { if (!replayAt) load(); }, 60000);
+</script>
+</body>
+</html>

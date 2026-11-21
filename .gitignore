@@ -52,3 +52,9 @@ compile_commands.json
 .idea/
 *.iml
 .DS_Store
+
+# Secrets and Soony challenge data (do not share outside the team)
+.env
+data/
+.venv/
+__pycache__/
