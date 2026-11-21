@@ -52,3 +52,14 @@ compile_commands.json
 .idea/
 *.iml
 .DS_Store
+
+# Secrets and customer data (never commit)
+.env
+.env.*
+!.env.example
+data/
+*.sqlite
+*.eml
+packs/soony_gh6/
+tests/fixtures/soony/
+tests/golden/soony_gh6/

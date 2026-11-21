@@ -12,3 +12,10 @@ Load it at the start of each task. If skill invocation is unavailable, read
 `.claude/skills/simple-english/SKILL.md` and its relevant references instead.
 Apply its guidance without changing facts, uncertainty, requirements, quoted
 text, code, identifiers, commands, or other content that must remain exact.
+
+## Implementation
+
+Before you write or change product code, read `docs/umsetzung.md` for the order
+of the steps and `architecture.md` for the design. The first table in
+`architecture.md` names the file in `docs/` that you must read for each part. Keep customer values
+out of the core package (`docs/kern-und-kundenpaket.md`).
