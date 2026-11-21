@@ -11,6 +11,7 @@ from typing import Any
 from lineguard import clock
 from lineguard import db
 from lineguard import runtime
+from lineguard.coverage import booking_check
 from lineguard.coverage import core
 
 
@@ -29,9 +30,11 @@ def _rank(rt: runtime.Runtime, component: core.ComponentState) -> tuple[int, flo
 def recompute(rt: runtime.Runtime, event: dict[str, Any] | None = None) -> core.State:
     """Computes the state, stores it and emits `gap.changed` where needed."""
     del event  # The calculation always covers the whole workspace.
+    # The booking check runs first: its findings change what counts as stock.
+    booking_check.check_all(rt)
     state = core.compute(rt)
     now = clock.iso()
-    rt.conn.execute("BEGIN")
+    rt.conn.execute("BEGIN IMMEDIATE")
     try:
         _store_products(rt, state)
         _store_components(rt, state, now)

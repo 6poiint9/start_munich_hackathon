@@ -42,6 +42,7 @@ class LocalFolderSource:
         self._root = root
 
     def list(self) -> list[SourceFile]:
+        """All files below the root with checksum. Hidden files are skipped."""
         found = []
         for path in sorted(self._root.rglob("*")):
             if not path.is_file() or path.name.startswith("."):

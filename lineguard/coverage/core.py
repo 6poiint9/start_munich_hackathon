@@ -459,7 +459,7 @@ def compute(rt: runtime.Runtime, now: datetime.datetime | None = None) -> State:
 
     for product_id in product_ids:
         product = ProductState(product_id, descriptions.get(product_id) or product_id)
-        product.demand = sum(l.units for l in all_lines if l.product_id == product_id)
+        product.demand = sum(line.units for line in all_lines if line.product_id == product_id)
         entries = history.get(product_id, [])
         if entries:
             product.packed_as_of, product.packed, _ = entries[-1]
@@ -588,8 +588,8 @@ def _allocate(rt: runtime.Runtime, state: State, bom: dict[str, dict[str, float]
                 component.latest_useful_arrival = useful
         line.buildable[level] = possible
     for product in state.products.values():
-        own = [l for l in state.lines if l.product_id == product.product_id]
-        buildable = sum(l.buildable.get(level, 0.0) for l in own)
+        own = [line for line in state.lines if line.product_id == product.product_id]
+        buildable = sum(line.buildable.get(level, 0.0) for line in own)
         if product.rate_per_hour and product.hours_left is not None:
             buildable = min(buildable, product.rate_per_hour * product.hours_left)
         product.buildable[level] = buildable

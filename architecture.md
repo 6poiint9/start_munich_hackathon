@@ -1,7 +1,7 @@
 # Lineguard – Technische Architektur
 
 **Team TRIPLET · START Hack Munich 2026 · Lio-Case „Keep the Line Running“**
-Stand: Sa 21.11.2026, 22:45 (Europe/Berlin). Daten geprüft gegen den Portal-Stand von 18:15 (318 Dateien) und von 22:45 (332 Dateien, Nachtrag zu §0a). Ergänzt um das Gespräch mit Nils Berger und die Entscheidungen von 19:55 (§0b) und um die Prüfung der Skalierung von 20:20 (`docs/skalierung.md`) · Abgabe: **So 22.11., 12:00** · Launch: **So 22.11., 20:00**
+Stand: Sa 21.11.2026, ~23:00 (Europe/Berlin). Daten geprüft gegen den Portal-Stand von 18:15 (318 Dateien) und von 22:45 (332 Dateien, Nachtrag zu §0a). Ergänzt um das Gespräch mit Nils Berger und die Entscheidungen von 19:55 (§0b), um die Prüfung der Skalierung von 20:20 (`docs/skalierung.md`) und um Bens Notizen zum Gespräch mit Nils, die Kriterien aus den Lio-PDFs und die Zielgruppe des Produkts (23:00: §0b, §0e, §2.5) · Abgabe: **So 22.11., 12:00** · Launch: **So 22.11., 20:00**
 
 **Lineguard** ist das Produkt: Es hält eine Linie mit fester Frist am Laufen, für jede Firma mit Stückliste und Lieferanten. **Launch Control Room** ist der Einsatz von Lineguard bei Soony. Alles, was nur für Soony gilt, steht im Kundenpaket und nicht im Kern (`docs/kern-und-kundenpaket.md`).
 
@@ -36,17 +36,18 @@ Bei einem Widerspruch gilt die Datei unter `docs/` für ihr Thema und dieses Dok
 | Produkt | **Lineguard** = **Stock Truth** (echte Deckung und Uhrzeit des Linienstopps) + **Buchungsprüfung** (Fehler beim Wareneingang sofort finden) + **Release Gate** (nur freigegebene Teile zählen) + **Supplier Chaser** (Agenten handeln per Mail) + **Decision Desk** (Freigaben nach den Regeln des Kunden). Einsatz bei Soony: „Launch Control Room“ |
 | Ziel | 100 % Deckung der Nachfrage zur Frist, bei Soony alle 712.000 Kopien. Eine allgemeine Schleife schließt jede Lücke oder meldet sie offen als nicht schließbar (`docs/lueckenschluss.md`) |
 | Kern und Kundenpaket | Kern `lineguard/` ohne Kundenwerte. Paket `packs/soony_gh6/` mit Frist, Nachfrage, Quellen, Grenzwerten und Freigaberegeln (`docs/kern-und-kundenpaket.md`) |
-| ERP | Lesen aus Exporten. Schreiben nur als Korrektur mit Freigabe durch den `erp_owner` (bei Soony Nils Berger), über einen Adapter: Datei als Standard, Soonys Middleware sobald der Zugang da ist (`docs/buchungspruefung.md` §7) |
+| ERP | Lesen aus Exporten. Schreiben nur als Korrektur über den Port `ErpWriter`. Wichtige Korrekturen gibt der `erp_owner` frei (bei Soony Nils Berger). Alle anderen dürfen automatisch laufen, wenn der Kunde die Grenzen im Paket setzt (§2.5, „Stufen der ERP-Korrektur“). Heute schreibt der Port eine Korrektur-Datei. Die Middleware des Kunden kommt dazu, sobald es sie gibt; bei Soony gibt es sie noch nicht (`docs/buchungspruefung.md` §7) |
 | Agenten | 5 Agenten mit eigenen Tools: **Watcher, Reader, Stock Truth, Action, Decision**. Buchungsprüfung und Lückenschluss sind Code in Stock Truth und Decision, keine neuen Agenten |
 | Zusammenarbeit | Ein gemeinsamer Zustand (SQLite) + Event-Tabelle als Queue. Kein Agent ruft einen anderen direkt auf |
 | Dauerbetrieb | Die Frist ist ein Bedarfstermin unter mehreren. Buchungsprüfung, Release Gate und Wächter laufen ohne Frist weiter. Was nach der Frist wirkt, ist ein Fall mit Besitzer und Datum in der Liste „Danach“ (`docs/dauerbetrieb.md`) |
 | Wartung | Freigabe nur mit Person und Rolle, nummerierte Migrationen, CI bei jedem Push, Golden Set für die Lese-Qualität, Erweiterung über eine Datei plus Test (`docs/betrieb-und-wartung.md`) |
 | Skalierung | Bis zur Abgabe nur die Nähte: Reader parallel, Events mit Claim und Partition, `workspace_id` in jeder Tabelle, neutrales Datenmodell, Speicher hinter Schnittstellen, Messwerte. Der Ausbau (Container je Kunde, Postgres, Push statt Polling) hat je Stufe einen Auslöser (`docs/skalierung.md`) |
-| Default-Stack | **Python 3.11 · FastAPI · SQLite · eigener Orchestrator-Loop (asyncio) · Next.js** |
+| Default-Stack | **Python 3.12 · FastAPI · SQLite · eigener Orchestrator-Loop (asyncio) · Next.js** |
 | Alternative | LangGraph statt eigenem Loop, Streamlit als Notlösung für die UI (siehe §7) |
 | Demo-Fälle | Nach Wert sortiert (CPO-Memo: Collector's zuerst): (1) Artbook −5.900 CE · (2) Statue −3.400 CE · (3) Hüllen am CTA −32.000 STD · (4) Sleeves Rev. B: 64.000 sperren · (5) Spielkarten −6.800 STD · (6) Magnete: bewusst **kein** Alarm |
 | Ausgabe | **Eine Seite**: was eine Linie stoppt, wann, und was es kostet (CPO-Memo: „One page per day … Not forty dashboards“) |
-| Sicherheit | Mails standardmäßig `DRY_RUN`; jede Nicht-Routine-Mail und jede Entscheidung braucht einen Klick durch einen Menschen |
+| Sicherheit | Mails standardmäßig `DRY_RUN`; jede Nicht-Routine-Mail und jede Entscheidung braucht einen Klick durch einen Menschen. ERP-Korrekturen: „wichtig“ → Mensch, sonst automatisch und rücknehmbar (§2.5) |
+| Für wen | Jede Firma, die zu einem festen Termin aus Teilen mehrerer Lieferanten fertigt oder packt, mit ERP und Belegen auf Papier. Soony ist der erste Kunde (§0e) |
 
 ---
 
@@ -89,18 +90,24 @@ Bei einem Widerspruch gilt die Datei unter `docs/` für ihr Thema und dieses Dok
 
 ### Gespräch mit Nils Berger (IT & Systems Lead, Soony)
 
-Das Gespräch liegt als automatische Mitschrift vor. Unklare Stellen sind markiert.
+Quellen: automatische Mitschrift des Gesprächs (Sa 21.11., 18:30) und Bens Notizen dazu (Stand 23:00). Die Notizen klären die zwei Stellen, die in der Mitschrift unklar waren (Middleware, früherer Versuch).
 
-| Aussage von Nils | Folge für die Architektur |
-|---|---|
-| Ein falscher Bestand in SAP fällt erst auf, wenn das Teil wieder gebraucht wird. Das dauert ein paar Tage bei vielen Bestellungen, sonst auch Monate | Buchungsprüfung bei jedem Wareneingang (`docs/buchungspruefung.md`). Zählung anfordern, wenn die Deckung dünn und die letzte Zählung alt ist (`docs/lueckenschluss.md` §7) |
-| 80.000 statt 8.000 ist „der Klassiker“: eine Null zu viel getippt, Faktor 10. Das ist kein Einzelfall. An welcher Stelle der Fehler entsteht (Fahrer, Lieferant, Buchung), weiß er nicht | Ursache `decimal_shift` als eigene Regel. Die Prüfung vergleicht mehrere unabhängige Quellen, weil der Ort des Fehlers offen ist. Der Artbook-Fall (§5, Fall 1) ist genau dieser Fehler |
-| Der Wareneingang wird von Hand gebucht | Jede Buchung wird gegen Bestellung, Lieferschein, Gewicht und Packstücke geprüft |
-| Nur Nils darf Daten im ERP korrigieren. Bei einem Fehler suchen Leute in Mails und Telefonnotizen oder schauen im Lager nach, dann korrigiert er | Rolle `erp_owner`. Lineguard sammelt die Belege selbst und legt eine fertige Korrektur-Karte vor. Ein Klick gibt sie frei |
-| Die Korrektur passiert sofort, wenn es dringend ist, sonst auch erst zwei Wochen später | Stock Truth rechnet sofort mit der belegten Menge und wartet nicht auf die Korrektur im ERP. Die Karte zeigt ihr Alter |
-| Die Korrekturen kosten ihn „fast alles“ an Zeit. Er würde lieber Software bauen und Daten prüfen. Eine Stundenzahl nannte er nicht | Kennzahlen im System: Zeit bis zum Fund, Zeit bis zur Korrektur, Anzahl der Befunde (`docs/buchungspruefung.md` §8). Die Stundenzahl ist eine offene Frage (§11, Frage 16) |
-| SAP ist „heilig“. Für das Schreiben kann eine Middleware benutzt werden. **Unklar in der Mitschrift:** ob es sie schon gibt, und wie Endpunkt und Zugang aussehen | Port `ErpWriter` mit zwei Implementierungen. Standard ist die Korrektur als Datei. Die Middleware kommt dazu, sobald Nils Endpunkt und Zugang nennt (§11, Frage 15) |
-| Ob Soony schon einmal versucht hat, Fehler automatisch zu finden: **keine klare Antwort in der Mitschrift** | Offene Frage (§11, Frage 17). Der Pitch behauptet dazu nichts |
+Jeder Pain Point ist eine Anforderung an den Kern. Die Spalte rechts nennt den Teil, der sie löst.
+
+| Nr. | Pain Point laut Nils | Anforderung | Teil von Lineguard |
+|---|---|---|---|
+| P1 | Fast alle Fehler macht ein Mensch: Der Fahrer übermittelt falsch, der Lieferant übermittelt falsch, jemand tippt eine Null zu viel. 80.000 statt 8.000 ist „der Klassiker“, Faktor 10. Kein Einzelfall, es passiert häufiger | Jede Buchung gegen unabhängige Quellen prüfen. Faktor 10 als eigene Ursache erkennen. Nicht annehmen, an welcher Stelle der Fehler entstand | Buchungsprüfung bei jedem Wareneingang, Ursache `decimal_shift`, Vergleich mit Bestellung, Lieferschein, Gewicht und Packstücken (`docs/buchungspruefung.md` §3, §4). Leitfall Artbook (§5, Fall 1) |
+| P2 | Ein falscher Bestand fällt erst auf, wenn das Teil wieder gebraucht wird, meist beim Packen oder Versenden: nach ein paar Tagen oder nach Monaten | Den Fehler bei der Buchung finden, nicht beim Verbrauch. Bestand vor dem Verbrauch zählen lassen, wenn er knapp und alt ist | Buchungsprüfung läuft bei `facts.updated` sofort, Rückblick über alle alten Wareneingänge beim ersten Import, Regel `thin_and_stale` (`docs/lueckenschluss.md` §7) |
+| P3 | Die Prüfung kostet die Zeit: Wenn ein Mensch einen Fehler gemacht hat, muss Nils selbst prüfen, ob das stimmt. Das stört ihn am meisten | Die Prüfung erledigt das System. Der Mensch sieht nur das Ergebnis mit Beleg | Korrektur-Karte mit einem Satz, Belegen mit Link auf Datei und Stelle, vorgeschlagener Buchung und Wirkung (`docs/buchungspruefung.md` §6). Beleg-Ansicht (§6.6) |
+| P4 | Danach hin und her: telefonieren, mailen („was ist jetzt eigentlich?“), jemand schaut im Lager nach, Ticket einstellen lassen | Belege, Rückfrage und Zählung laufen im System, nicht über Telefon und Ticket | Reader sammelt die Belege selbst. Aktion `count_request` an den `site_lead`, Antwort als Fakt `counted_qty`. Ein Fall je Befund mit Besitzer und Zustand (`docs/dauerbetrieb.md` §6) |
+| P5 | Nur Nils darf an die Datenbank-Ebene, SAP ist „heilig“. Es hängt an einer Person. Je nach Auslastung geht es sofort oder erst 2 Wochen später | Die Deckung darf nicht auf die Korrektur im ERP warten. Kleine Fälle dürfen den einen Menschen nicht blockieren | Stock Truth rechnet sofort mit der belegten Menge (`docs/buchungspruefung.md` §5). Stufen: wichtig → `erp_owner`, sonst automatisch (§2.5, `docs/buchungspruefung.md` §6a). Die Karte zeigt ihr Alter |
+| P6 | Nils macht auch die Ursachenanalyse: Warum ist das so gelaufen? | Ursache und Herkunft je Befund festhalten, damit die Analyse nicht von vorn beginnt | Feld `cause` je Befund, Prüfungen mit Quell-Fakt, Verlauf im Event-Log (§6.6). Kennzahlen je Lieferant und Ursache (`docs/buchungspruefung.md` §8) |
+| P7 | Fehlerkorrektur kostet „fast alles“, „fast die komplette Woche“. Er würde lieber Software bauen, Endpunkte ausbauen und Daten genauer anschauen | Zeit messbar machen, die das System spart | Kennzahlen: Zeit bis zum Fund, Prüfzeit des Menschen je Karte, Zeit bis zur Korrektur, Anteil `auto` an allen Korrekturen, Befunde je Ursache (`docs/buchungspruefung.md` §8) |
+| P8 | Automatische Fehlererkennung wurde noch nie versucht. Es fehlt die Zeit. Deshalb würde Soony eine Lösung kaufen | Startklar ohne IT-Projekt beim Kunden: Lesen aus vorhandenen Exporten und Dokumenten, kein Eingriff ins ERP nötig | Watcher und Reader auf den vorhandenen Dateien. Ein Kundenpaket statt Code (`docs/kern-und-kundenpaket.md`) |
+| P9 | Schreiben ins SAP: Soony würde eine Middleware bereitstellen, die es noch nicht gibt. Bis dahin zeigen, was hineingeschrieben würde, und später anbinden. Regel: „Wenn super wichtig, schaut ein Mensch drüber, sonst automatisch“ | Schreibweg als Port mit Platzhalter. Stufen für die Freigabe als Daten im Paket | Port `ErpWriter`: heute `ProposalFileWriter` (Korrektur als Datei = genau das, was hineingeschrieben würde), später `MiddlewareWriter`. Stufen der ERP-Korrektur (§2.5) |
+| P10 | Es gibt andere Kunden, deren Daten ähnlich aussehen. Das Produkt soll für sie genauso laufen | Kein Kundenwert im Kern | Kern und Kundenpaket, zweites Paket `demo_bikes`, Test `test_no_customer_values.py` (§0e) |
+
+Keine Zahl aus dem Gespräch: Stunden pro Woche als Zahl, Anzahl Fehler pro Monat. Das Deck zitiert Nils wörtlich (§11, Frage 16).
 
 ### Entscheidungen des Teams
 
@@ -118,21 +125,34 @@ Das Gespräch liegt als automatische Mitschrift vor. Unklare Stellen sind markie
 | Zeit | Kommt die Ware früh genug, um noch gepackt zu werden? | `breaks_at`, `latest_useful_arrival`, Vergleich `actual_rate` gegen `required_rate` |
 | Nachhaken | Ist die Zusage belegt? | Action Agent mit Follow-up, Absicherung durch eine zweite Option, Eskalation an die nächste Rolle |
 
-Software stellt keine Ware her. Kann eine Lücke nicht geschlossen werden, zeigt Lineguard den Rest offen mit Stückzahl, Grund und Plan für die Lieferung nach der Frist (`docs/lueckenschluss.md` §8).
+Wie die Architektur sicherstellt, dass jeder Kunde sein Spiel bekommt (Details in `docs/lueckenschluss.md`):
 
-### Aus den Unterlagen von Lio (Challenge-Brief und Jury-Kriterien)
+1. **Jede Lücke hat jederzeit einen Zustand.** `close_gaps()` läuft bei jedem neuen Fakt und jedem `tick`. Jede Lücke mit `impact = deadline_blocker` hat einen Plan mit Besitzer, Preis und `act_by`, oder sie ist `unclosable` mit `residual_qty`. Ein Test prüft das für jede Lücke im eingefrorenen Datenstand (§5, §10 dort).
+2. **Vorbestellt zuerst.** Die Rangfolge kommt aus dem Paket (`priority_order`, bei Soony aus dem CPO-Memo: Collector's zuerst). Geteilte Teile werden für die vorbestellte Nachfrage **reserviert**, nicht nur gerechnet (§2.3). Bei Soony sind das 487.000 Vorbestellungen (72.000 CE, 415.000 Standard).
+3. **Rechtzeitig, nicht irgendwann.** Eine Option zählt nur mit Ankunft vor `latest_useful_arrival`. Fertig ist ein Produkt erst bei `coverage(secured) = 100 %`, nicht bei „bestellt“.
+4. **Keine stille Lücke.** Eine offene Entscheidung geht 30 Minuten vor `act_by` an die nächste Rolle. Ein nicht schließbarer Rest steht in der Kopfzeile mit Stückzahl, Grund und Beleg und geht als Entscheidung `deliver_after_deadline` an die oberste Rolle. Der Zustand `unclosable` ist vor der Frist nie endgültig.
 
-Diese Punkte gelten als Anforderungen an den Bau. Die Zuordnung zu den Kriterien steht in `docs/jury-und-pitch.md`.
+Software stellt keine Ware her. Das Versprechen lautet deshalb: Kein Kunde fällt unbemerkt heraus. Jeder Rest ist früh sichtbar, hat einen Besitzer und einen Plan (`docs/lueckenschluss.md` §8).
 
-1. Agenten handeln: lesen, entscheiden, schreiben, eskalieren. Eine Anzeige über einer Tabelle reicht nicht.
-2. Werkzeuge, Logik und Zustand statt eines großen Prompts.
-3. Kein fest eingebauter Wert. Unordentliche, mehrsprachige (KO, ZH, PL, EN) und widersprüchliche Daten in mehreren Formaten.
-4. Ein neuer Drop im Portal wird ohne Umbau verarbeitet. Drops kommen tagsüber und ohne Ankündigung.
-5. Das Team kann erklären, was passiert, wenn das System falsch liegt (§6.6).
-6. Ein Thema tief statt zehn Themen flach. Der Leitfall ist der Artbook-Fall mit Buchungsprüfung, Korrektur und Nachbestellung.
-7. Eine Oberfläche, eine klare Empfehlung, ein Klick, ein gut gestalteter Moment für die Entscheidung des Menschen.
-8. Lieferanten antworten nur auf Mails von Absendern, die im Portal unter Settings eingetragen sind.
-9. Die Kundendaten bleiben im Team (§11, Frage 13).
+### Aus den Unterlagen von Lio: Kriterium → wo in der Architektur erfüllt
+
+Quellen: `Lio_Challenge.pdf` („Keep the Line Running“) und `Lio_Judging.pdf`. Ausführlich für Deck und Demo: `docs/jury-und-pitch.md`.
+
+| Kriterium (Quelle) | Wo erfüllt |
+|---|---|
+| **Eintritt:** System läuft live vor der Jury (Judging, Entry Ticket) | Lokaler Betrieb mit Datei-Spiegel, `REPLAY`, LLM-Cache und zweitem Laptop (§10) |
+| **Abgabe bis So 12:00:** Prototyp, deployed wenn möglich · Pitch-Deck · Demo-Video, höchstens 3 Minuten · Code mit kurzer README (Judging, Challenge §06) | Deployment optional (§7, Zeile „Deployment Demo“) · Deck: 4 Folien + 2–3 Backup-Folien (§9) · Video als Abgabe und Rückfall (§10, Punkt 6) · README mit Start in 3 Befehlen (§8). Abgabe bis 11:45 (§9) |
+| **Pitch:** 3 Minuten, danach 2 Minuten Fragen. Problem in 30 Sekunden, Linie vom Schmerz zum Produkt, Gelerntes aus den Gesprächen (Judging 01, 04) | Leitfall Artbook mit Nils' Aussagen P1 bis P5 (§0b). Die Demo ist der Hauptteil |
+| **Business Case:** Soony ist der erste Kunde, nicht der einzige. Wer hat das Problem noch? Was ist es wert? (Judging 02) | §0e Zielgruppe und Kundenpaket. Kennzahlen aus P7. Offene Zahlen: §11, Fragen 11, 16, 23 |
+| **Agenten handeln:** lesen, entscheiden, schreiben, eskalieren. Eine Anzeige über einer Tabelle reicht nicht (Challenge §03, „The one rule“) | Action Agent (Mails), Decision Agent (Pläne, Eskalation), Release Gate (Sperre), ERP-Korrektur (§2.4, §2.5) |
+| **Architektur:** Tool-Use, Logik, Zustand statt eines großen Prompts (Judging 03) | 5 Agenten mit Tools, gemeinsamer Zustand, Event-Tabelle (§1 bis §3). Code rechnet, LLM liest und schreibt |
+| **Unordentliche Daten, nichts fest eingebaut:** mehrsprachig (KR, CN, PL, EN), Excel, PDF, Papier, Widersprüche (Challenge §04, Onboarding-Notizen) | Quellen-Rangfolge und `contradictions` (§2.3), Schema-Erkennung (§6.1), Vision für Handschrift (§7.1), `test_no_customer_values.py` |
+| **Neuer Drop ohne Umbau:** Dateien kommen ohne Ankündigung (Challenge §04) | Watcher mit Prüfsummen, ersetzte Dateien, Fakten-Diff (§2.1, §6.4) |
+| **Was passiert, wenn das System falsch liegt?** (Judging 03) | §6.6 |
+| **Taste:** ein Produkt, eine klare Empfehlung, ein Klick, ein guter Moment für die Entscheidung (Judging 04) | Eine Seite, Kopfzeile mit Deckung, Karten mit einem Satz, Beleg und Knopf (§7, `docs/buchungspruefung.md` §6) |
+| **Tief statt breit:** ein Problem richtig lösen (Challenge §03, Judging 04) | Ein Fall zuerst von Anfang bis Ende (§9, Prinzip) |
+| **Lieferanten-Mail:** nur von Absendern, die im Portal unter Settings stehen (Challenge §04) | `tripletstarthack@gmail.com` registriert (§7.2) |
+| **Daten bleiben im Team** (Challenge, Fine Print) | `.gitignore`, Paket außerhalb des Repos (§11, Fragen 13, 24) |
 
 ---
 
@@ -184,15 +204,35 @@ Zwei Annahmen im Branch widersprechen dem Plan und sind offene Fragen (§11, Fra
 
 ---
 
+## 0e. Für wen Lineguard gebaut ist
+
+**Problemklasse:** Eine Firma muss zu einem festen Termin fertigen oder packen. Sie hat eine Stückliste, mehrere Lieferanten, ein ERP, das Menschen von Hand füllen, und Belege auf Papier oder als PDF. Der Bestand im ERP und die Wirklichkeit laufen auseinander, und der Fehler fällt erst beim Verbrauch auf (§0b, P1 und P2). Lio schreibt dazu: „Soony is your first customer, not your only one.“ Nils sagt: Es gibt andere Kunden, deren Daten ähnlich aussehen (P10). Beispiele für Branchen: `docs/jury-und-pitch.md` §5.
+
+**Soony ist der erste Kunde.** Der Einsatz dort heißt „Launch Control Room“. Im Pitch: „Lineguard hat bei Soony den Launch gesichert“, nicht „wir haben Soonys Problem gelöst“.
+
+| Bleibt beim nächsten Kunden gleich (Kern `lineguard/`) | Kommt ins Kundenpaket (`packs/<kunde>/`) |
+|---|---|
+| 5 Agenten, Event-Tabelle, Datenmodell | Frist und Nachfrage (`pack.yaml`) |
+| Rechenkern: Deckung, `breaks_at`, Release Gate | Quellen und Dateimuster (`routes.yaml`) |
+| Buchungsprüfung mit Prüfungen 1 bis 8 und Ursachen | Rangfolge der Quellen (`source_rank.yaml`) |
+| Lückenschluss mit Generatoren für Optionen | Freigaberegeln und Eskalation (`approval_policy.yaml`), Grenzen der ERP-Stufen (`booking_check.tiers` in `pack.yaml`) |
+| Ports `SourceConnector`, `Mailer`, `ErpWriter` | Welcher Schreibweg: Datei oder Middleware des Kunden |
+| Eine Seite mit Kopfzeile, Karten, Freigabe | Begriffe des Kunden für die Oberfläche (`labels`) |
+| Neutrale Begriffe (`deadline`, `product`, `component`, `erp_owner`) | Teilenummern-Aliasse, eigene Prompts (optional) |
+
+Regel und Beweis: `docs/kern-und-kundenpaket.md` (Regel §1, Paket §3, zweites Paket `demo_bikes` §5). Satz für das Deck: „Der nächste Kunde ist ein Ordner, kein Projekt.“
+
+---
+
 ## 1. Systemüberblick
 
 ```mermaid
 flowchart LR
     subgraph Extern
-        API["Soony Portal API<br/>GET /api/v1/files<br/>GET /api/v1/files/{path}"]
+        API["Quellen des Kunden<br/>bei Soony: Portal-API<br/>GET /api/v1/files<br/>GET /api/v1/files/{path}"]
         MAIL["Lieferanten-Postfächer<br/>*@suppliers.juliansibbing.de"]
         LLM["LLM-API<br/>(Extraktion, Mapping, Entwürfe)"]
-        ERPW["ERP-Schreibweg<br/>Korrektur-Datei oder Soony-Middleware"]
+        ERPW["ERP-Schreibweg (Port ErpWriter)<br/>Korrektur-Datei oder Middleware des Kunden"]
     end
 
     subgraph Backend["Backend (Python, FastAPI)"]
@@ -207,7 +247,7 @@ flowchart LR
     end
 
     UI["Control Room UI<br/>(Next.js)<br/>eine Seite: Deckung in Prozent ·<br/>Linienstopps mit Uhrzeit · Belege ·<br/>Mail-Entwürfe · Korrektur-Karten · Freigabe-Buttons"]
-    HUMAN(("Mensch<br/>Vogt / Brunner / Winter / Jansen / Weiss / Berger"))
+    HUMAN(("Rollen des Kunden<br/>bei Soony: Vogt / Brunner / Winter /<br/>Jansen / Weiss / Berger"))
 
     API -- "Polling 60 s, SHA-256-Diff" --> W
     W --> STORE
@@ -217,7 +257,7 @@ flowchart LR
     R -- "facts + Belege" --> DB
     R <--> LLM
     S -- "gaps, contradictions,<br/>findings, corrections" --> DB
-    S -- "Korrektur (nur nach Freigabe<br/>durch erp_owner)" --> ERPW
+    S -- "Korrektur (wichtig: Freigabe durch erp_owner,<br/>sonst automatisch nach Regel)" --> ERPW
     D -- "options, decisions" --> DB
     A -- "emails, actions" --> DB
     A <--> LLM
@@ -341,9 +381,19 @@ Jeder Fall, in dem Stufe 1–2 einer Stufe 3–5 widerspricht, wird zusätzlich 
 | Ausnahme / vakante Rolle | Head of Procurement (§6) **Dr. Maren Vogt** | Statuen-Sonderfreigabe |
 | Nicht freigegebenes Teil (CPO-Memo 21.11.) | Quality & Compliance hat das letzte Wort: **Clara Weiss** zusätzlich zu jeder Freigabe, die ein gesperrtes oder nicht freigegebenes Teil in die Box bringt | Sleeve Rev. B sperren, Statuen-Sonderfreigabe |
 | Über PP-07-Grenze (CPO-Memo 21.11.) | Luftfracht und Eilaufträge über der Grenze gehen in derselben Stunde an den CPO, mit Kosten gegen gerettete Kopien | — |
-| Korrektur im ERP (Gespräch mit Nils Berger, 21.11.) | Nur der `erp_owner` gibt frei: IT & Systems Lead **Nils Berger** | Wareneingang 5000413065: 80.000 → 8.000 |
+| Korrektur im ERP, wichtig (Gespräch mit Nils Berger, 21.11.) | Der `erp_owner` gibt frei: IT & Systems Lead **Nils Berger** | Wareneingang 5000413065: 80.000 → 8.000 (CE, Linienstopp vor der Frist) |
+| Korrektur im ERP, nicht wichtig | Automatisch nach der Regel `policy:erp_write_auto`, die der `erp_owner` gesetzt hat. Er sieht sie in der Liste „Automatisch korrigiert“ und kann sie zurücknehmen | — |
 
 Personen und Rollen kommen aus dem jeweils neuesten Organigramm, nicht aus dem Code. Die Regeln des CPO-Memos liest der Reader als `policy_rule`-Fakten.
+
+**Stufen der ERP-Korrektur.** Nils' Regel lautet: „Wenn super wichtig, schaut ein Mensch drüber, sonst automatisch“ (§0b, P9). Jeder Befund mit Status `proposed` bekommt eine Stufe (`tier`). Code entscheidet sie, kein Prompt. Die Grenzen stehen im Paket unter `booking_check.tiers`. Die vollständige Regel steht in `docs/buchungspruefung.md` §6a.
+
+| Stufe | Wann | Ablauf |
+|---|---|---|
+| `human` („wichtig“) | Mindestens eine Bedingung trifft zu: `auto_enabled` ist `false` (Standard) · die Korrektur ändert eine Lücke mit `impact = deadline_blocker` oder eine `demand_class` aus `human_demand_classes` · Wert der Differenz über `auto_max_value_eur` oder Preis fehlt · `cause` nicht in `auto_causes` · `agreeing_sources` unter `auto_min_agreeing_sources` | Korrektur-Karte an den `erp_owner`, ein Klick gibt frei |
+| `auto` | Keine Bedingung trifft zu | Freigabe durch die Regel, die der `erp_owner` gesetzt hat: `approved_by = policy:erp_write_auto`. Gleicher `ErpWriter`. Liste „Automatisch korrigiert“ mit Knopf **Zurücknehmen** (Gegenkorrektur) |
+
+Ein Befund mit `needs_count` ist nie `auto`. Bei Soony steht `auto_enabled: false`, bis Nils die Grenzen nennt (§11, Frage 28). Der Artbook-Befund ist ohnehin `human`. Die Stufe `auto` zeigt der Test mit dem Paket `demo_bikes`.
 
 ---
 
@@ -389,7 +439,7 @@ Zusätzliche Spalten: `gaps.due_at`, `gaps.residual_qty` und `case_id` in `gaps`
 
 Zusätzlich klein: `aliases` (Lieferanten-Teilenummer → `component_id`), `contacts` (Lieferant, Mail, Sprache, Quelle), `schema_maps` (Spalten-Mapping je Datei-Signatur, siehe §6.1), `build_status` (`as_of`, `product_id`, `packed`, `still_to_pack`, `rate_per_hour`, `source_file_id`; eine Zeile je Produkt und Status-Datei), `llm_calls` (Modell, Tokens, Dauer, Cache-Treffer je Aufruf), `schema_version` (höchste angewandte Migration). Frist und Grenzwerte kommen aus dem Paket, der Schichtplan als Fakten.
 
-**Event-Typen:** `file.added`, `file.changed`, `file.removed`, `facts.updated`, `gap.changed`, `gap.unclosable`, `gap.closed`, `contradiction.created`, `finding.created`, `correction.proposed`, `correction.approved`, `correction.rejected`, `correction.verified`, `option.created`, `option.changed`, `decision.created`, `decision.approved`, `decision.rejected`, `decision.escalated`, `email.drafted`, `email.sent`, `email.received`, `action.done`, `tick` (Timer).
+**Event-Typen:** `file.added`, `file.changed`, `file.removed`, `facts.updated`, `gap.changed`, `gap.unclosable`, `gap.closed`, `contradiction.created`, `finding.created`, `correction.proposed`, `correction.approved`, `correction.auto_applied`, `correction.rejected`, `correction.reverted`, `correction.verified`, `option.created`, `option.changed`, `decision.created`, `decision.approved`, `decision.rejected`, `decision.escalated`, `email.drafted`, `email.sent`, `email.received`, `action.done`, `tick` (Timer).
 
 Neue Fakt-Typen für die Buchungsprüfung: `delivery_note_qty`, `delivery_note_weight_kg`, `delivery_note_packages`, `counted_qty`, `gr_exception_qty`. Weitere Fakt-Typen aus `docs/import-und-routen.md`: `demand`, `note`, `transit`, `person_role`.
 
@@ -507,7 +557,7 @@ Die Jury fragt danach (`docs/jury-und-pitch.md` §2). Jeder Fehlertyp hat eine S
 | Fehler | Sicherung | Was der Mensch sieht |
 |---|---|---|
 | Reader liest eine Zahl falsch | Fakt mit `confidence < 0.7` zählt nicht (§6.5). Eine Lücke braucht den Beleg, und die Buchungsprüfung braucht zwei unabhängige Quellen | Beleg-Ansicht mit markierter Stelle neben der gelesenen Zahl. Ein Klick korrigiert den Fakt (`extracted_by = human`) |
-| Buchungsprüfung meldet einen Fehler, der keiner ist | Die Korrektur geht nie ohne Freigabe ins ERP. Ablehnen mit Grund setzt den Befund auf `dismissed`, Stock Truth rechnet wieder mit der ERP-Menge | Korrektur-Karte mit „Ablehnen“. Der Grund bleibt als Fakt erhalten |
+| Buchungsprüfung meldet einen Fehler, der keiner ist | Eine wichtige Korrektur geht nie ohne Freigabe ins ERP. Eine automatische ist nur möglich, wenn genug unabhängige Quellen übereinstimmen, und sie lässt sich zurücknehmen (§2.5). Ablehnen mit Grund setzt den Befund auf `dismissed`, Stock Truth rechnet wieder mit der ERP-Menge | Korrektur-Karte mit „Ablehnen“, Liste „Automatisch korrigiert“ mit „Zurücknehmen“. Der Grund bleibt als Fakt erhalten |
 | Buchungsprüfung übersieht einen Fehler | Regel `thin_and_stale` fordert eine Zählung an, bevor das Teil gebraucht wird | Zähl-Auftrag an den Site Lead |
 | Eine freigegebene Korrektur war falsch | Die Korrektur gilt erst als erledigt, wenn der nächste ERP-Export sie zeigt. Eine Gegenkorrektur ist eine neue Korrektur mit eigener Freigabe | Verlauf je Wareneingang im Event-Log |
 | Eine Option hält nicht (Lieferant sagt ab, Lkw kommt nicht) | Unbestätigte Optionen zählen nicht als gesichert. Eine Absicherung läuft mit, bis ein Beleg da ist | Kopfzeile trennt „gesichert“ von „in Arbeit“ |
@@ -524,7 +574,7 @@ Jede Zahl in der Oberfläche führt mit einem Klick zu ihren Fakten und von dort
 ### Default (empfohlen)
 | Schicht | Wahl | Warum |
 |---|---|---|
-| Sprache | Python 3.11 | OCR, pandas, PDF, LLM-SDKs, alles vorhanden; vorhandene Skripte sind Python |
+| Sprache | Python 3.12 | OCR, pandas, PDF, LLM-SDKs, alles vorhanden; vorhandene Skripte sind Python |
 | Backend/API | FastAPI + Uvicorn | REST für UI und Freigabe-Buttons, `/healthz` (mit Messwerten), `/events` |
 | State | SQLite (WAL-Modus) + SQLModel/Pydantic, geöffnet über `DATABASE_URL`. Dateien über den Port `BlobStore` | Null Setup, eine Datei, leicht zu sichern/zurückzusetzen für Demo. Der Wechsel auf Postgres und S3 ändert keine Agenten (`docs/skalierung.md` N5) |
 | Orchestrierung | Eigener asyncio-Loop (`orchestrator.py`, ~200 Zeilen): je Handler-Gruppe eine feste Zahl von Tasks, die Events über `claim_next()` nach Priorität holen (Reader 8, Stock Truth 2, Decision 2, Action 1). Timer für Watcher/IMAP/Follow-ups | Volle Kontrolle, leicht zu debuggen, keine Framework-Lernkurve |
@@ -533,7 +583,7 @@ Jede Zahl in der Oberfläche führt mit einem Klick zu ihren Fakten und von dort
 | OCR | tesseract (`eng kor pol chi_sim`) + pdftotext (poppler); LLM-Vision für Handschrift | Lokal, schnell |
 | Mail | `smtplib` + `imaplib` (Gmail, App-Passwort), Details in §7.2 | Kein OAuth nötig. Das Gmail-Konto gibt es seit 21.11. |
 | Frontend | **Next.js (App Router) + Tailwind + shadcn/ui**, liest FastAPI per REST, Polling alle 5 s (`/state` liefert Kopfzeile, die ersten 50 Fälle nach Rang und Zähler) | Die Jury bewertet „Taste“: ein echtes Produkt, eine Seite, klare Freigabe-Momente. Entschieden am 21.11., 18:10 |
-| Deployment Demo | Lokal auf einem Laptop (Backend + `next dev`). Optional: Frontend auf Vercel, Backend auf einer kleinen VM | Kein Infrastruktur-Risiko. Die Abgabe verlangt „deployed if possible“, also nur wenn So früh Zeit bleibt |
+| Deployment Demo | Lokal auf einem Laptop (Backend + `next dev`). Optional: Frontend auf Vercel, Backend auf einer kleinen VM | Kein Infrastruktur-Risiko. Die Jury-Kriterien verlangen „deployed if possible“, der Challenge-Brief schreibt „working prototype (deployed)“. Deshalb deployen, wenn es So in 30 Minuten klappt. Kundendaten dürfen dabei nicht öffentlich werden (§11, Frage 13) |
 
 ### Alternative
 - **LangGraph** statt eigenem Loop, wenn ihr Checkpointing/Graph-Visualisierung für den Pitch wollt. Nachteil: Lernkurve, schwerer zu debuggen unter Zeitdruck.
@@ -707,7 +757,7 @@ Rollen: **A = Daten & Rechenkern** (Watcher, Reader-Tabellen, Stock Truth) · **
 | **So 00:30–01:00** | **Integration 1:** alle 6 Fälle zeigen die richtigen Zahlen; DB-Snapshot | ← gemeinsam | ← gemeinsam |
 | **01:00–06:30** | **Schlafen** (mind. 4,5 h; der Watcher läuft weiter und archiviert Drops) | | |
 | **06:30–08:30** | Ersetzte Datei → Fakten-Diff; `simulate_drop.py`; altes SAP-Format. **Neu:** Wächter `revision_mismatch_open_po` und `validity_expiring` (`docs/dauerbetrieb.md` §5) | Antworten der Lieferanten einlesen → Reader → Neuberechnung; nächtliche Drops prüfen. **Neu:** `closing.py`: Schleife mit Absicherung, Zustand `unclosable`, Eskalation (`docs/lueckenschluss.md` §5) | Fakten-Diff und Event-Log in der Seite; Texte und Details. **Neu:** Kopfzeile mit Deckung in Prozent und den vier Zuständen; Liste „Danach“ |
-| **08:30–09:30** | Resilienz, nur das Nötige: Retries, Idempotenz-Keys, `needs_review`. **Neu:** `test_no_customer_values.py`; `llm_calls` und `/healthz` (N7); Prüfungen 3 bis 5 (Gewicht, Packstücke, Verlauf); Paket `demo_bikes`, wenn Zeit bleibt | Antworten aus den Office Hours einbauen (Kosten einer fehlenden Kopie) | Pitch-Story + Deck-Rohfassung. **Prüfpunkt:** Steht die UI nicht, Wechsel auf Streamlit |
+| **08:30–09:30** | Resilienz, nur das Nötige: Retries, Idempotenz-Keys, `needs_review`. **Neu:** `test_no_customer_values.py`; `llm_calls` und `/healthz` (N7); Prüfungen 3 bis 5 (Gewicht, Packstücke, Verlauf); Paket `demo_bikes`, wenn Zeit bleibt | Antworten aus den Office Hours einbauen (Kosten einer fehlenden Kopie) | Pitch-Story + Deck-Rohfassung: 4 Folien (Problem, Live-Demo, Wie es funktioniert, Wirkung und Ausblick) + 2–3 Backup-Folien für Fragen. Pitch 3 Minuten. **Prüfpunkt:** Steht die UI nicht, Wechsel auf Streamlit |
 | **09:30–10:30** | **Integration 2 + Generalprobe:** komplette Demo 3× durchspielen, Bugs fixen | ← | ← |
 | **10:30–11:15** | Demo-Backup erzeugen (§10), DB-Snapshot | README, Architektur-Bild aktualisieren | Video-Aufnahme der Demo (Backup), Deck final |
 | **11:15–12:00** | **Feature-Freeze**, Abgabe vorbereiten, Puffer | ← | Abgabe hochladen bis spätestens **11:45** |
@@ -725,7 +775,7 @@ Office Hours (Vogt/Brunner/Berger) früh nutzen: idealerweise Sa-Abend oder So-M
 3. **DB-Snapshots** (je Workspace unter `data/<workspace>/demo/`): `demo_start.sqlite` (alles rot) und `demo_end.sqlite` (nach Freigaben). `make demo-reset` stellt in 2 s den Startzustand her.
 4. **Lokaler Datei-Spiegel:** Portal-Daten liegen lokal; ohne WLAN liest der Watcher aus `data/<workspace>/live/` und `simulate_drop.py` erzeugt den Drop-Moment.
 5. **LLM-Cache:** Alle Extraktionen sind gecacht, die Demo läuft auch ohne LLM-API identisch.
-6. **Video:** 2–3 min Bildschirmaufnahme der Generalprobe als letzte Rückfallebene.
+6. **Video:** Pflicht für die Abgabe, höchstens 3 Minuten. Bildschirmaufnahme der Generalprobe mit Sprechertext. Fällt das WLAN aus, ist es auch der Rückfall auf der Bühne.
 7. **Zweiter Laptop** mit identischem Stand (git + DB-Snapshot) und Mobil-Hotspot.
 
 **Uhr zum Zurückspulen.** Die Demo läuft am Sonntag ab 14:00. Dann liegen mehrere `breaks_at` und `act_by` schon in der Vergangenheit. `lineguard/clock.py` liefert `now()`, und kein anderer Code liest die Systemzeit. `LINEGUARD_NOW=2026-11-21T13:00:00+01:00` stellt die Uhr für den ganzen Prozess. `/state?at=<Zeitpunkt>` rechnet eine Ansicht für einen anderen Zeitpunkt, ohne etwas zu speichern. Die Tests setzen ihre Uhr auf demselben Weg.
@@ -747,12 +797,12 @@ Office Hours (Vogt/Brunner/Berger) früh nutzen: idealerweise Sa-Abend oder So-M
 9. **Sleeves:** ~~Offener Widerspruch ohne Aktion?~~ **Geklärt durch die Daten** (§0a Punkt 3): Charge 5000413064 ist Rev. B und wird gesperrt. Offen bleibt eine Frage an Felix Brunner oder Katrin Jansen: Welche Sleeve-Charge liegt gerade an der Linie, und wurden schon Rev.-B-Sleeves gepackt?
 10. **Packraten-Engpass:** Der Status von Sa 13:00 passt genau zur Planrate (900/h CE, 6.000/h STD), wenn die 6.300 CE und 42.000 STD am Samstag in 7 Stunden gepackt wurden. Der beste Tag im `packout_log` lag aber bei 6.800 CE in 16 h (425/h). Für Freitag, 20.11., gibt es keine Zeile. Stock Truth vergleicht deshalb `actual_rate` mit `required_rate` (§2.3) bei jeder neuen Status-Datei. Frage an Felix Brunner: Wurde am Freitag gepackt, und hält die CE-Zelle 900/h?
 11. **Kosten einer fehlenden Kopie:** Haben wir aus den Office Hours eine Zahl von Dr. Vogt (Marge, Strafen, CE-Erstattung)? Sonst zeigen wir nur Stückzahlen und Std-Kosten (STD 11,90 €, CE 34,50 €). Das CPO-Memo gibt die Richtung vor: vorbestellt = Erstattung + Kundenverlust, Standard = später verkauft.
-12. **Hosting für die Abgabe:** Muss das System für die Jury öffentlich erreichbar sein (URL) oder reicht Repo + Video + Live-Demo am Laptop?
+12. **Hosting für die Abgabe:** Teilweise geklärt durch die PDFs: Die Jury verlangt „deployed if possible“, der Challenge-Brief „deployed“. Pflicht ist der Live-Lauf vor der Jury. *Default: Live-Demo am Laptop, Deployment nur wenn es So in 30 Minuten klappt und keine Kundendaten öffentlich werden.*
 13. **Repo ist öffentlich:** `6poiint9/start_munich_hackathon` ist auf GitHub **public**. Die Kundendaten dürfen das Team nicht verlassen. Deshalb: `data/`, `.env`, DB-Snapshots und `.eml`-Dateien in `.gitignore`, Token nur in `.env`. Dieses Dokument enthält selbst Kundendaten (Namen, Mengen, Mail-Domain). Stellen wir das Repo auf privat und laden die Jury ein, oder bleibt dieses Dokument außerhalb des Repos?
 14. **Demo-Zeitpunkt:** Wann genau ist euer Pitch-Slot? Davon hängt ab, ob Fristen wie das Nowak-Angebot (24 h ab 21.11.) in der Demo „noch offen“ oder „abgelaufen“ sind.
-15. **Middleware für SAP (an Nils Berger):** Laut Nils kann eine Middleware für das Schreiben benutzt werden. Offen: Gibt es sie schon? Wie lauten Endpunkt, Zugang und Format einer Korrekturbuchung (Storno plus neuer Wareneingang)? *Default: `ProposalFileWriter`, also Korrektur als JSON und CSV plus Mail an Nils. `MiddlewareWriter` erst mit Endpunkt und Zugang (`docs/buchungspruefung.md` §7).*
-16. **Zahl für den Business Case (an Nils Berger):** Wie viele Stunden pro Woche gehen in Korrekturen, und wie viele Korrekturen sind es pro Monat? Er sagte „fast alles“, nannte aber keine Zahl. *Default: Das Deck zitiert „fast alles, laut Nils“ ohne Stundenzahl.*
-17. **Früherer Versuch (an Nils Berger):** Hat Soony schon einmal versucht, Buchungsfehler automatisch zu finden, und woran ist es gescheitert? Die Mitschrift enthält dazu keine klare Antwort. *Default: Der Pitch behauptet dazu nichts.*
+15. **Middleware für SAP (an Nils Berger):** **Geklärt (Notizen 23:00):** Es gibt sie noch nicht. Soony würde sie bereitstellen. Bis dahin zeigen wir, was hineingeschrieben würde. Offen für später: Endpunkt, Zugang und Format einer Korrekturbuchung (Storno plus neuer Wareneingang). *Default: `ProposalFileWriter`, also Korrektur als JSON und CSV plus Mail an Nils. `MiddlewareWriter` erst mit Endpunkt und Zugang (`docs/buchungspruefung.md` §7).*
+16. **Zahl für den Business Case (an Nils Berger):** **Beantwortet:** „fast die komplette Woche“ geht in Fehlerkorrektur. Offen bleibt nur eine genaue Stundenzahl und die Anzahl Korrekturen pro Monat. *Default: Das Deck zitiert „fast die komplette Woche, laut Nils“ ohne Stundenzahl.*
+17. **Früherer Versuch (an Nils Berger):** **Beantwortet:** Noch nie versucht, es fehlt die Zeit. Deshalb würde Soony eine Lösung kaufen (§0b, P8). Der Pitch darf das so sagen.
 18. **Zählung im Lager:** Wer zählt am Wochenende ein Teil auf Anfrage, und wie schnell? Davon hängt ab, ob `count_request` vor dem Launch noch ein Ergebnis bringt. Frage an Felix Brunner oder Katrin Jansen. *Default: Anfrage an den Site Lead, Antwort als Mail.*
 19. **Ziel 100 %:** ~~Reicht „alle Vorbestellungen“?~~ **Entschieden (21.11., 19:55): Ziel sind alle 712.000 Kopien, mit einer allgemeinen Schleife statt Sonderregeln** (§0b, `docs/lueckenschluss.md`).
 20. **Produktname:** **Entschieden (21.11., 19:55): Lineguard.** „Launch Control Room“ bleibt der Name des Einsatzes bei Soony.
@@ -763,3 +813,4 @@ Office Hours (Vogt/Brunner/Berger) früh nutzen: idealerweise Sa-Abend oder So-M
 25. **Zeit vom Tor bis zur Linie und Abholung am Hafen (an Felix Brunner):** Der Plan rechnet mit 2 Stunden vom Wareneingang bis zum ersten Teil an der Linie (`coverage.default_handling_hours`). Der Branch `origin/christian` rechnet mit 4 Stunden und mit 1 Tag für die Abholung eines Containers am Hafen. Beides sind Annahmen. Die Werte verschieben `latest_useful_arrival` und damit jede Option. *Default: 2 Stunden im Paket, bis Felix eine Zahl nennt.*
 26. **Datenstand für den Bau:** **Erledigt (21.11., 22:45):** `PORTAL_TOKEN` steht in `.env`, der Stand mit 332 Dateien liegt unter `data/soony_gh6/live/` und eingefroren unter `tests/fixtures/soony/`. Ergebnis der Prüfung im Nachtrag zu §0a. Die Nachfrage steht in den Daten: `day_one_qty` in `products.csv` und „of which pre-orders“ im Launch-Plan (415.000 Standard). Offen: Das Portal bekommt weiter Dateien. Die erwarteten Zahlen in den Tests gelten für den eingefrorenen Stand.
 27. **Branch `origin/christian`:** **Entschieden (21.11., 22:10): kein Merge, nur die Punkte aus §0d.** Offen: Läuft das Deployment des Branches auf Render noch? Es lädt Kundendaten auf einen fremden Server und gehört abgeschaltet oder mit Passwort geschützt, bis Frage 13 geklärt ist.
+28. **Grenze für „super wichtig“ (an Nils Berger):** Ab wann muss er eine ERP-Korrektur selbst sehen? Gesucht sind `auto_max_value_eur`, `auto_causes` und `auto_min_agreeing_sources` unter `booking_check.tiers` (§2.5, `docs/buchungspruefung.md` §6a) und ob die Automatik später auch über die Middleware schreiben darf. *Default: `auto_enabled: false` im Soony-Paket, jede Korrektur geht an Nils.*

@@ -4,13 +4,23 @@ Lies diese Datei, wenn du `lineguard/coverage/booking_check.py`, die Korrektur-K
 
 ## 1. Warum
 
-Quelle: Gespräch mit Nils Berger, IT & Systems Lead bei Soony, Sa 21.11. (Zusammenfassung in `architecture.md` §0b).
+Quelle: Gespräch mit Nils Berger, IT & Systems Lead bei Soony, Sa 21.11., 18:30 (Notizen von Ben, O-Ton sinngemäß; Zusammenfassung in `architecture.md` §0b).
 
-- Ein falscher Bestand fällt heute erst auf, wenn das Teil gebraucht wird. Das dauert Tage bis Monate.
-- Der häufigste Fehler ist eine Null zu viel oder zu wenig beim Buchen (Faktor 10).
-- Nur Nils darf ERP-Daten korrigieren. Die Korrektur dauert zwischen sofort und zwei Wochen.
+Was Nils gesagt hat, gilt hier als Anforderung:
 
-Die Buchungsprüfung findet den Fehler zum Zeitpunkt der Buchung und gibt dem `erp_owner` einen fertigen Vorschlag mit Beleg.
+| Nr. | Aussage von Nils | Anforderung | Wo erfüllt |
+|---|---|---|---|
+| R1 | Fast alle Fehler macht ein Mensch: Der Fahrer übermittelt falsch, der Lieferant übermittelt falsch, jemand tippt eine 0 zu viel | Nie einer Quelle allein glauben. Jede Buchung gegen unabhängige Belege prüfen | §3, §4 |
+| R2 | 80.000 statt 8.000 ist „der Klassiker“, Faktor 10. Kein Einzelfall, passiert häufiger | Faktor 10 ist eine eigene Ursache (`decimal_shift`). Der Rückblick zeigt, wie oft es vorkommt | §2, §4 |
+| R3 | Der Fehler fällt erst auf, wenn das Teil gebraucht wird, meist beim Packen oder Versand. Nach ein paar Tagen oder nach Monaten | Prüfen beim Wareneingang, nicht an der Linie | §2 |
+| R4 | Am meisten stört: Bei einem Fehler muss Nils selbst prüfen, ob es stimmt. Telefonieren, Mails, jemand schaut im Lager nach | Die Prüfzeit ist der eigentliche Aufwand. Lineguard sammelt die Belege und zeigt sie nebeneinander | §6 |
+| R5 | SAP ist „heilig“. Nur Nils darf an die Datenbank. Es hängt an einer Person | Rolle `erp_owner`. Kein Schreiben ohne seine Freigabe oder seine Regel | §6a, §7 |
+| R6 | Ticket einstellen lassen, dann je nach Auslastung sofort oder erst 2 Wochen später | Stock Truth rechnet sofort mit der belegten Menge und wartet nicht auf das ERP | §5 |
+| R7 | Wenn es super wichtig ist, schaut ein Mensch drüber, sonst automatisch | Zwei Stufen: `human` und `auto`. Die Grenzen stehen im Paket, nicht im Kern | §6a |
+| R8 | Die Middleware zum Schreiben ins SAP gibt es noch nicht. Soony würde sie bereitstellen. Bis dahin mocken, was geschrieben würde | `ProposalFileWriter` schreibt genau das, was später an die Middleware geht. `MiddlewareWriter` kommt später | §7 |
+| R9 | Nils macht auch die Ursachenanalyse („warum ist das so gelaufen“) | Jeder Befund nennt Ursache und vermuteten Ort des Fehlers | §4 |
+
+Die Buchungsprüfung findet den Fehler zum Zeitpunkt der Buchung. Sie gibt dem `erp_owner` einen fertigen Vorschlag mit Beleg, oder sie korrigiert nach seiner Regel selbst.
 
 Kein neuer Agent. Die Prüfung ist deterministischer Code im Stock-Truth-Handler.
 
@@ -66,6 +76,17 @@ ratio           = booked_qty / proposed_qty
 | `content_mismatch` | Prüfung 8 ist `fail`. `proposed_qty` = gebuchte Menge minus Menge aus dem Freitext. Der Freitext ist eine Quelle, deshalb entsteht ohne zweiten Beleg der Status `needs_count` |
 | `quantity_mismatch` | alle anderen Fälle |
 
+**Ort des Fehlers** (`origin_hint`, für die Ursachenanalyse von Nils):
+
+| `origin_hint` | Bedingung |
+|---|---|
+| `handwritten_ignored` | Der Lieferschein hat eine handschriftliche Korrektur. Die Buchung folgt der gedruckten Zahl (`value_text`) |
+| `supplier_document` | Die gedruckte Menge auf dem Lieferschein weicht von der Bestellung ab, ohne Handkorrektur, und die Buchung folgt ihr |
+| `booking_entry` | Alle Belege stimmen überein, nur die Buchung weicht ab |
+| `unknown` | Keiner der Fälle oben |
+
+Beim Artbook (`5000413065`) ist es `handwritten_ignored`: Auf WZ-261116-473 ist „80.000“ durchgestrichen und „8 000“ von Hand geschrieben. Gebucht wurden 80.000.
+
 Unabhängig sind zwei Quellen, wenn sie aus verschiedenen Dokumenten kommen. Menge und Gewicht auf demselben Lieferschein zählen als zwei Quellen, weil der Schreiber sie getrennt einträgt.
 
 Entscheidung:
@@ -86,16 +107,43 @@ Lehnt der `erp_owner` die Korrektur ab, bekommt der Befund den Status `dismissed
 Empfänger ist die Rolle `erp_owner` aus dem Paket. Die Karte zeigt:
 
 1. Einen Satz: „Wareneingang 5000413065: 80.000 gebucht, 8.000 belegt. Vermutung: eine Null zu viel.“
-2. Die Belege als Liste mit Link auf Datei und Stelle: Bestellposition, Lieferschein-Scan mit markierter Stelle, Gewichtsrechnung, Packstücke.
+2. Die Belege **nebeneinander** in einer Zeile: gebuchte Menge, Bestellposition, Ausschnitt des Lieferschein-Scans mit markierter Stelle, Gewichtsrechnung, Packstücke. Jeder Beleg hat einen Link auf Datei und Stelle. Ziel: Nils entscheidet auf der Karte, ohne Telefon, Mail oder Gang ins Lager (R4).
 3. Die vorgeschlagene Buchung: Storno des Belegs und neuer Wareneingang mit `proposed_qty`.
 4. Die Wirkung: „Deckung Collector's sinkt von +66.100 auf −5.900. Linie steht So 11:27.“
-5. Drei Knöpfe: **Korrektur freigeben** · **Ablehnen** (mit Grund) · **Zählung anfordern**.
+5. Ursache und Ort des Fehlers (`cause`, `origin_hint`).
+6. Drei Knöpfe: **Korrektur freigeben** · **Ablehnen** (mit Grund) · **Zählung anfordern**.
 
 Die Zahlen im Beispiel kommen aus den Fakten des Artbook-Falls. Die Karte baut ihren Text aus dem Befund, nicht aus einer Vorlage je Fall.
 
+## 6a. Stufe: Mensch prüft oder automatisch
+
+Regel von Nils (R7): Wenn es super wichtig ist, schaut ein Mensch drüber, sonst läuft es automatisch. Jeder Befund mit Status `proposed` bekommt deshalb eine Stufe (`tier`): `human` oder `auto`.
+
+Der Kern kennt nur die Regel. Die Grenzen stehen im Paket unter `booking_check.tiers` (`docs/kern-und-kundenpaket.md` §3).
+
+Ein Befund ist `human`, wenn mindestens eine Bedingung zutrifft:
+
+1. `tiers.auto_enabled` ist `false`. Das ist der Standard im Kern.
+2. Die Korrektur ändert eine Lücke mit `impact = deadline_blocker`, oder sie ändert die Deckung einer `demand_class` aus `tiers.human_demand_classes`.
+3. Der Wert der Differenz (`delta_qty` × Preis aus der Bestellposition) ist größer als `tiers.auto_max_value_eur`. Fehlt der Preis, gilt `human`.
+4. `cause` steht nicht in `tiers.auto_causes`.
+5. `agreeing_sources` ist kleiner als `tiers.auto_min_agreeing_sources`.
+
+Sonst ist der Befund `auto`:
+
+- Die Korrektur ist durch die Regel freigegeben: `approved_by = policy:erp_write_auto`, dazu die Version des Pakets. Die Regel hat der `erp_owner` gesetzt, sie ist seine Freigabe im Voraus.
+- Sie läuft über denselben `ErpWriter` wie jede andere Korrektur (§7).
+- Sie steht in der Liste „Automatisch korrigiert“. Dort gibt es einen Knopf **Zurücknehmen**. Er erzeugt eine Gegenkorrektur, wieder über den `ErpWriter`.
+
+Ein Befund mit Status `needs_count` ist nie `auto`. Ohne zweiten Beleg gibt es keinen Vorschlag.
+
+Bei Soony ist der Artbook-Befund `human`: Er ändert die Deckung der Collector's Edition, eine Lücke mit `impact = deadline_blocker` (Bedingung 2). Die Werte für `auto_max_value_eur` und `auto_causes` hat Nils noch nicht genannt (offene Frage an Nils). Bis dahin steht im Soony-Paket `auto_enabled: false`. Die Stufe `auto` zeigt der Test mit dem erfundenen Paket `demo_bikes`.
+
 ## 7. Schreibweg ins ERP
 
-SAP ist bei Soony geschützt. Laut Nils kann eine Middleware für das Schreiben benutzt werden. Endpunkt und Zugang sind noch offen (`architecture.md` §11, Frage 15).
+SAP ist bei Soony geschützt. Laut Nils (Gespräch 21.11.) gibt es noch keine Middleware zum Schreiben. Soony würde sie bereitstellen. Bis dahin sollen wir mocken, was geschrieben würde, und später anbinden. Endpunkt und Zugang sind noch offen (`architecture.md` §11, Frage 15).
+
+Der Mock ist der `ProposalFileWriter`. Die JSON-Datei, die er schreibt, ist genau der Body, den später der `MiddlewareWriter` sendet (gleiches Schema `Correction`, Feld `schema_version`). Der Wechsel ist dann nur `erp_writer.mode: middleware` im Paket plus `ERP_MW_URL` und `ERP_MW_TOKEN` in `.env`. Kein Code im Kern ändert sich.
 
 Port in `lineguard/connectors/erp_writer.py`:
 
@@ -110,9 +158,9 @@ class ErpWriter(Protocol):
 | `ProposalFileWriter` (Standard) | `proposal_file` | Schreibt `data/<workspace>/out/corrections/<id>.json` und hängt eine Zeile an `data/<workspace>/out/corrections.csv` an. Erstellt eine Mail an den `erp_owner` mit beiden Dateien. Status `handed_over` |
 | `MiddlewareWriter` | `middleware` | `POST {ERP_MW_URL}/corrections` mit Token aus `ERP_MW_TOKEN`, Body = Korrektur als JSON, Header `Idempotency-Key`. Status `posted`. Bei Fehler nach 3 Versuchen: Rückfall auf `ProposalFileWriter` und Hinweis in der Oberfläche |
 
-Jeder Schreibvorgang trägt `approved_by` und `approved_at` einer Person mit der Rolle `erp_owner`. `apply` prüft das als erste Zeile und bricht sonst mit `ApprovalMissing` ab.
+Jeder Schreibvorgang trägt `approved_by` und `approved_at`. Erlaubt sind nur zwei Werte für `approved_by`: eine Person mit der Rolle `erp_owner`, oder `policy:erp_write_auto` bei einem Befund mit `tier = auto` (§6a). `apply` prüft das als erste Zeile und bricht sonst mit `ApprovalMissing` ab.
 
-Inhalt der Korrektur (`payload`): `kind` (`gr_qty`), `gr_number`, `po_number`, `po_line`, `material_id`, `site`, `booked_qty`, `proposed_qty`, `delta_qty`, `cause`, `evidence` (Liste aus Datei, Stelle, Wert), `finding_id`.
+Inhalt der Korrektur (`payload`): `schema_version`, `kind` (`gr_qty`), `gr_number`, `po_number`, `po_line`, `material_id`, `site`, `booked_qty`, `proposed_qty`, `delta_qty`, `cause`, `origin_hint`, `tier`, `evidence` (Liste aus Datei, Stelle, Wert), `finding_id`.
 
 **Bestätigung durch Lesen:** Eine Korrektur gilt erst als erledigt (`verified`), wenn ein späterer ERP-Export die neue Menge zeigt. Der Reader liest den Export, `verify_corrections()` vergleicht und setzt den Status. Bis dahin bleibt die Karte sichtbar mit ihrem Alter.
 
@@ -122,18 +170,20 @@ Neue Tabellen (Ergänzung zu `architecture.md` §3):
 
 | Tabelle | Spalten |
 |---|---|
-| `booking_findings` | `id`, `gr_fact_id`, `gr_number`, `component_id`, `supplier_id`, `po_number`, `po_line`, `booked_qty`, `proposed_qty`, `delta_qty`, `cause`, `checks` (JSON: Name → Status, Vergleichswert, `source_fact_id`), `agreeing_sources`, `confidence`, `status` (`proposed/needs_count/dismissed/corrected`), `booked_at`, `detected_at` |
-| `corrections` | `id`, `finding_id`, `kind`, `payload` (JSON), `approver_role`, `status` (`proposed/approved/rejected/handed_over/posted/verified/failed`), `approved_by`, `approved_at`, `reject_reason`, `writer`, `external_ref`, `idempotency_key` (UNIQUE), `verified_at` |
+| `booking_findings` | `id`, `gr_fact_id`, `gr_number`, `component_id`, `supplier_id`, `po_number`, `po_line`, `booked_qty`, `proposed_qty`, `delta_qty`, `cause`, `checks` (JSON: Name → Status, Vergleichswert, `source_fact_id`), `agreeing_sources`, `confidence`, `origin_hint`, `tier` (`human/auto`), `status` (`proposed/needs_count/dismissed/corrected`), `booked_at`, `detected_at` |
+| `corrections` | `id`, `finding_id`, `kind`, `payload` (JSON), `approver_role`, `status` (`proposed/approved/rejected/handed_over/posted/verified/failed`), `approved_by`, `approved_at`, `reject_reason`, `writer`, `external_ref`, `idempotency_key` (UNIQUE), `first_viewed_at`, `decided_at`, `reverts_correction_id`, `verified_at` |
 
-Neue Events: `finding.created`, `correction.proposed`, `correction.approved`, `correction.rejected`, `correction.verified`.
+Neue Events: `finding.created`, `correction.proposed`, `correction.approved`, `correction.auto_applied`, `correction.rejected`, `correction.reverted`, `correction.verified`.
 
 `idempotency_key` = `<gr_number>:<kind>:<proposed_qty>`. Ein zweiter Lauf über denselben Wareneingang erzeugt keinen zweiten Befund.
 
 Kennzahlen für den Business Case, aus den Tabellen berechnet:
 
 - `detected_at − booked_at` je Befund (heute laut Nils: Tage bis Monate)
+- `decided_at − first_viewed_at` je Karte: Prüfzeit des Menschen (heute laut Nils: Telefon, Mail, Gang ins Lager)
 - `verified_at − detected_at` je Korrektur (heute laut Nils: sofort bis zwei Wochen)
-- Anzahl der Befunde im Rückblick
+- Anteil `auto` an allen Korrekturen: Arbeit, die gar nicht mehr bei Nils landet
+- Anzahl der Befunde im Rückblick, je `cause` und `origin_hint`
 
 ## 9. Geprüft an den Daten
 
@@ -161,3 +211,5 @@ Diese Zahlen stehen nur in `tests/test_booking_check.py` als erwartetes Ergebnis
 4. `apply` ohne Freigabe wirft `ApprovalMissing`.
 5. Ein neuer ERP-Export mit der korrigierten Menge setzt die Korrektur auf `verified`.
 6. Der Test mit dem Paket `demo_bikes` findet dort den Faktor-10-Fehler mit denselben Regeln.
+7. `tests/test_booking_tiers.py`: Mit `demo_bikes` ist der Faktor-10-Befund am knappen Teil `human` und der kleine Befund am Teil mit viel Deckung `auto`. Der `auto`-Befund erzeugt ohne Klick die JSON-Datei mit `approved_by = policy:erp_write_auto`. **Zurücknehmen** erzeugt eine Gegenkorrektur. Mit `auto_enabled: false` sind alle Befunde `human`.
+8. Der Artbook-Befund hat `tier = human` und `origin_hint = handwritten_ignored`.

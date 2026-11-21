@@ -4,6 +4,16 @@ Lies diese Datei, bevor du eine Datei unter `lineguard/` oder `packs/` anlegst, 
 
 Entschieden am Sa 21.11., 19:55: Das Produkt heißt **Lineguard**. „Launch Control Room“ ist der Einsatz von Lineguard bei Soony.
 
+## 0. Warum Kern und Paket
+
+Lineguard ist ein Produkt für eine Klasse von Firmen, nicht ein Projekt für Soony. Soony ist der erste Kunde.
+
+- Die Jury fragt: „Soony is your first customer, not your only one.“ Gesucht ist ein klarer Weg zu den nächsten zehn Kunden (`docs/jury-und-pitch.md`).
+- Nils Berger sagte am 21.11.: Es gibt andere Kunden, deren Daten ähnlich aussehen.
+- Bens Vorgabe: Wir zeigen eine allgemeine Lösung, die auch Soonys Problem gelöst hat.
+
+Die Problemklasse: Eine Firma führt Teile von mehreren Lieferanten an einem Ort zu einem festen Termin zusammen. Das ERP wird von Hand gefüllt. Belege kommen als Tabellen, PDFs, Scans und Mails in mehreren Sprachen.
+
 ## 1. Die Regel
 
 Lineguard besteht aus zwei Teilen:
@@ -18,6 +28,20 @@ Jeder Kundenwert steht an genau einem dieser drei Orte:
 1. **Fakt:** Der Reader liest den Wert aus einer Kundendatei (Stückliste, Bestand, Organigramm, Angebot, Memo). Das ist der Normalfall.
 2. **Paket:** Der Wert steht in keiner Datei, oder er sagt dem Kern, wo und wie er lesen soll.
 3. **Test-Fixture:** Erwartete Zahlen für einen eingefrorenen Datenstand.
+
+Was wohin gehört, auf einen Blick:
+
+| Thema | Im Kern (gleich für jeden Kunden) | Im Paket (je Kunde) |
+|---|---|---|
+| Buchungsprüfung | Die acht Prüfungen, Ursachen, `origin_hint`, Regel für die Stufe `human`/`auto` | `over_tolerance`, `weight_ratio_range`, `min_agreeing_sources`, `tiers` |
+| ERP-Schreibweg | Port `ErpWriter`, Schema `Correction`, Pflicht zur Freigabe | `erp_writer.mode`, Rolle `erp_owner` |
+| Deckung und Lückenschluss | Rechenkern, Generatoren, Schleife, Zustände | Frist, Nachfrage (falls nicht in den Daten), `priority_order`, `coverage.*` |
+| Freigaben | `policy/engine.py`, Vertretung, vakante Rolle | `approval_policy.yaml` |
+| Daten lesen | Parser, Reader, Prompts, Quellen-Rangfolge als Mechanik | `routes.yaml`, `source_rank.yaml`, `aliases.csv` |
+| Mails | Action Agent, Zuordnung von Antworten | `mail.*`, Absender |
+| Oberfläche | Eine Seite, Karten, Kopfzeile | `labels` |
+
+Faustregel: Steht der Wert in einer Datei des Kunden, ist er ein Fakt. Ist es eine Entscheidung des Kunden (Grenze, Rolle, Rangfolge), steht er im Paket. Alles andere ist Kern.
 
 Falls es den Code schon unter `app/` gibt, bleibt der Ordnername. Die Regel betrifft Werte, nicht Ordnernamen.
 
@@ -84,6 +108,12 @@ booking_check:                      # siehe docs/buchungspruefung.md
   over_tolerance: 0.05
   weight_ratio_range: [0.5, 2.0]
   min_agreeing_sources: 2
+  tiers:                            # Stufe human/auto, docs/buchungspruefung.md §6a
+    auto_enabled: false             # Soony: aus, bis Nils die Grenzen nennt (offene Frage an Nils)
+    human_demand_classes: [preordered]
+    auto_causes: []                 # z. B. [duplicate_booking, decimal_shift], Wahl von Nils
+    auto_min_agreeing_sources: 3
+    auto_max_value_eur: 0
 coverage:                           # siehe docs/lueckenschluss.md
   confirm_threshold: 0.8
   thin_margin: 0.05
@@ -117,7 +147,8 @@ rules:
   - {id: dock_slot, applies_to: inbound_delivery, add_role: site_lead}
   - {id: supplier_release, applies_to: supplier_release, role: [category_lead, supplier_quality_lead]}
   - {id: unreleased_part, applies_to: unreleased_part, add_role: quality_compliance}
-  - {id: erp_write, applies_to: erp_correction, role: erp_owner}
+  - {id: erp_write, applies_to: erp_correction, role: erp_owner,
+     auto: booking_check.tiers}      # tier = auto: Freigabe durch die Regel (policy:erp_write_auto)
   - {id: vacant_role, fallback_role: head_of_procurement}
 escalation: [buyer, category_lead, head_of_procurement, cpo]
 source: "approval_policy_PP-07.pdf, memo_launch_priorities.docx"
@@ -145,7 +176,7 @@ source: "approval_policy_PP-07.pdf, memo_launch_priorities.docx"
 | `bedarf.csv` | `demand` | Zwei Zeilen mit verschiedenem `due_at` (`tests/test_demand_lines.py`) |
 | `bestand.csv` | `stock` | Ein Teil mit dünner Deckung und alter Zählung |
 | `bestellungen.csv` | `purchase_orders` | Eine offene Position mit nicht freigegebener Revision (`tests/test_watch.py`) |
-| `wareneingang.csv` | `goods_receipts` | Eine Buchung mit Faktor 10, eine Teillieferung |
+| `wareneingang.csv` | `goods_receipts` | Eine Buchung mit Faktor 10 an einem knappen Teil (Stufe `human`), eine kleine Doppelbuchung an einem Teil mit viel Deckung (Stufe `auto`), eine Teillieferung. `pack.yaml` hat `tiers.auto_enabled: true` mit erfundenen Grenzen |
 | `lieferscheine.csv` | `delivery_notes` | Menge, Gewicht und Packstücke je Lieferschein. Sie stützen die richtige Menge der Faktor-10-Buchung |
 | `angebote.csv` | `offers` | Ein Angebot, das die Lücke schließt (`tests/test_closing.py`) |
 | `vertraege.csv` | `validity` | Ein Vertrag mit `valid_until` 10 Tage nach der Test-Uhrzeit |
@@ -156,11 +187,13 @@ Alle Termine im Paket beziehen sich auf eine feste Test-Uhrzeit, die die Tests �
 
 Zweck: Der Test zeigt, dass der Kern ohne Änderung für einen zweiten Kunden läuft. Im Pitch ist das der Satz „Der nächste Kunde ist ein Ordner, kein Projekt“.
 
+`demo_bikes` ist erfunden. Die Grenzen darin sind Testwerte und gelten für keinen echten Kunden. Wie ein echter zweiter Kunde angelegt wird, steht in `docs/betrieb-und-wartung.md` §7.
+
 ## 6. Fertig, wenn
 
 1. `pytest tests/test_no_customer_values.py` ist grün. Der Test liest alle Bezeichner aus `packs/*/` und aus den Stammdaten (Teile, Lieferanten, Personen, Bestellnummern) und findet keinen davon in `lineguard/`.
 2. Der Kern startet mit `LINEGUARD_PACK=packs/soony_gh6` und mit `LINEGUARD_PACK=tests/fixtures/packs/demo_bikes`, ohne dass eine Datei im Kern anders ist.
 3. `pytest tests/test_second_pack.py` ist grün: Der Kern findet im Paket `demo_bikes` den Faktor-10-Fehler und die Lücke und erstellt eine Entscheidung.
-4. Eine Änderung an einem Grenzwert in `pack.yaml` ändert das Ergebnis nach einem Neustart, ohne Code-Änderung.
+4. Eine Änderung an einem Grenzwert in `pack.yaml` ändert das Ergebnis nach einem Neustart, ohne Code-Änderung. Beispiel: `tiers.auto_enabled: false` in `demo_bikes` macht den `auto`-Befund zu `human`.
 
 Bei Zeitnot entfallen Punkt 2 (zweites Paket) und Punkt 3. Punkt 1 und Punkt 4 bleiben.

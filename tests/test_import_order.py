@@ -18,9 +18,9 @@ def test_wave_one_gives_gaps_without_llm(tmp_path, monkeypatch):
     assert failed == []
     assert calls == []
     assert len(documents) == 1, "the text document waits for wave 2"
-    # Before the booking check, the wrong receipt hides the frame gap. The
-    # thin bell stock is not a gap either.
-    assert gaps == []
+    # The booking check runs without LLM: it finds the wrong receipt, and
+    # the frame gap shows up.
+    assert [(g["component_id"], g["gap_qty"]) for g in gaps] == [("RAHMEN-01", -50)]
 
 
 def test_every_file_meets_a_route(tmp_path, monkeypatch):

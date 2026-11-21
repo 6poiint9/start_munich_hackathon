@@ -13,6 +13,12 @@ Software stellt keine Ware her. Lineguard sichert deshalb vier Dinge zu, und jed
 3. **Zeit:** Jede Option zählt nur, wenn die Ware noch rechtzeitig gepackt werden kann.
 4. **Nachhaken:** Eine Option zählt erst als sicher, wenn ein Beleg sie bestätigt. Bis dahin läuft eine Absicherung mit.
 
+**Zusage für jede Kopie:** Zu jedem Zeitpunkt ist jede Kopie der Nachfrage in genau einem Zustand: `packed`, `secured`, `planned`, `open` oder `unclosable`. Eine sechste Möglichkeit gibt es nicht. Keine Kopie fehlt still. Der Test in §10, Punkt 8 prüft das.
+
+**Rangfolge bei Mangel:** Bei Soony gilt das Memo des CPO (`memo_launch_priorities.docx`, 21.11.): „Collector's Edition first. All 72,000 copies are pre-ordered and numbered. Where a part is short, it goes to the Collector's cell before the Standard lines. This includes game cards.“ Grund laut Memo: Eine vorbestellte Kopie, die am ersten Tag fehlt, wird erstattet und kostet den Kunden. Eine Standard-Kopie am Dienstag wird noch verkauft. Im Paket steht das als `priority_order: [preordered, compliance, open_sale]`. Die Rangfolge bestimmt, was zuerst gedeckt wird. Das Ziel bleibt 100 % für alle Stufen.
+
+**Keine Deckung mit gesperrter Ware:** Laut Memo verlässt keine Kopie Hamburg mit einem nicht freigegebenen Teil. Kein Generator zählt deshalb Ware ohne Freigabe, auch nicht, um eine Lücke zu schließen. `rework_sort` zählt nur die erwartete gute Menge nach der Sortierung.
+
 Die Schleife ist allgemein. Sie kennt Fakt-Typen und Stammdaten, aber kein Teil, keinen Lieferanten und keinen Fall von Soony.
 
 „Frist“ und `deadline` meinen in dieser Datei den Bedarfstermin der Lücke (`gaps.due_at`). Bei mehreren Terminen gilt die Zuteilung aus `docs/dauerbetrieb.md` §4. Fälle aus der Liste „Danach“ kommen in die Schleife, sobald ihr `act_by` im Horizont liegt.
@@ -146,9 +152,10 @@ wenn margin < thin_margin
 Lineguard meldet den Rest offen und versteckt ihn nicht:
 
 1. Kopfzeile: „Standard 98,9 % · 6.800 Kopien nicht schließbar“ mit dem Grund und dem Beleg.
-2. Verteilung nach `priority_order`: Vorbestellte Nachfrage wird zuerst gedeckt, und die Menge dafür wird reserviert.
-3. Entscheidung an die oberste Rolle der Eskalationskette mit der Option `deliver_after_deadline` (frühestes Datum, Stückzahl, Kosten).
-4. Die Schleife sucht bei jedem neuen Fakt weiter. Der Zustand `unclosable` ist nie endgültig vor der Frist.
+2. Verteilung nach `priority_order`: Vorbestellte Nachfrage wird zuerst gedeckt, und die Menge dafür wird reserviert. Erst danach bekommt die nächste Stufe Teile. Ein Rest bleibt also zuerst bei `open_sale`.
+3. **Eskalation sofort:** Beim Event `gap.unclosable` geht eine Entscheidung an die oberste Rolle der Eskalationskette (bei Soony `cpo`). Sie wartet nicht auf `act_by`. Inhalt: Stückzahl, betroffene `demand_class`, Grund, Beleg und die Option `deliver_after_deadline` (frühestes Datum, Stückzahl, Kosten).
+4. Trifft der Rest die erste Stufe aus `priority_order` (bei Soony `preordered`, also Collector's), steht die Entscheidung oben in der Liste „Jetzt“, rot, vor allen anderen Fällen.
+5. Die Schleife sucht bei jedem neuen Fakt weiter. Der Zustand `unclosable` ist nie endgültig vor der Frist.
 
 ## 9. Daten
 
@@ -177,3 +184,7 @@ Neue Events: `option.created`, `option.changed`, `decision.escalated`, `gap.uncl
 5. Eine offene Entscheidung wechselt 30 Minuten vor `act_by` zur nächsten Rolle.
 6. Der Test mit dem Paket `demo_bikes` erzeugt mit denselben Generatoren mindestens eine Option und einen Plan.
 7. Kein Generator enthält einen Kundenwert (`tests/test_no_customer_values.py`).
+8. `tests/test_every_unit_accounted.py`: Für jedes Produkt ist `packed + secured + planned + open + unclosable = demand`. Keine Kopie fehlt in der Summe.
+9. Bei Mangel an einem geteilten Teil deckt die Verteilung zuerst `preordered`. Ein Test mit dem Soony-Stand (`@pytest.mark.customer_data`) zeigt das an den Spielkarten (`CMP-GAM-001`).
+10. Ein Event `gap.unclosable` erzeugt im selben Durchlauf eine Entscheidung an die oberste Rolle der Eskalationskette.
+11. Kein Plan enthält Ware ohne Freigabe.

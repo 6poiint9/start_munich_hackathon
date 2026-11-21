@@ -9,12 +9,16 @@ from collections.abc import Callable, Iterable
 import logging
 from typing import Any
 
+from lineguard import approvals
 from lineguard import db
 from lineguard import runtime
+from lineguard.agents import action
 from lineguard.agents import stock_truth
 from lineguard.agents import watcher
+from lineguard.agents.reader import documents
 from lineguard.agents.reader import router
 from lineguard.connectors import source as source_module
+from lineguard.coverage import closing
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +30,27 @@ HANDLERS: dict[str, dict[str, Handler]] = {
     "reader": {
         "file.added": router.handle_file,
         "file.changed": router.handle_file,
+        "notes.read": documents.read_notes,
     },
     "stock_truth": {
         "facts.updated": stock_truth.recompute,
         "file.removed": stock_truth.recompute,
+        "correction.approved": stock_truth.recompute,
+        "correction.rejected": stock_truth.recompute,
+        "fact.corrected": stock_truth.recompute,
     },
+}
+
+
+HANDLERS["decision"] = {
+    "gap.changed": closing.close_gaps,
+    "gap.closed": approvals.on_gap_closed,
+    "decision.rejected": closing.close_gaps,
+    "tick": closing.close_gaps,
+}
+HANDLERS["action"] = {
+    "action.requested": action.handle_requested,
+    "tick.action": action.poll_and_follow_up,
 }
 
 
@@ -82,5 +102,8 @@ def drain(rt: runtime.Runtime, groups: Iterable[str] | None = None, max_priority
 def import_wave_one(rt: runtime.Runtime, source: source_module.SourceConnector) -> list[dict[str, Any]]:
     """Syncs the source and reads all tables. No LLM call happens here."""
     changes = watcher.sync(rt, source)
-    drain(rt, ["reader", "stock_truth"], max_priority=1)
+    # All tables first, then one calculation on the complete master data.
+    drain(rt, ["reader"], max_priority=1)
+    drain(rt, ["stock_truth"], max_priority=1)
+    drain(rt, ["decision", "action", "stock_truth"])
     return changes

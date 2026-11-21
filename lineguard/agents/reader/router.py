@@ -9,11 +9,12 @@ from typing import Any
 
 from lineguard import db
 from lineguard import runtime
+from lineguard.agents.reader import documents
 from lineguard.agents.reader import kinds
+from lineguard.agents.reader import notify
 from lineguard.agents.reader import tables
 
 logger = logging.getLogger(__name__)
-_MANY_COMPONENTS = 20
 
 
 def handle_file(rt: runtime.Runtime, event: dict[str, Any]) -> None:
@@ -30,12 +31,8 @@ def handle_file(rt: runtime.Runtime, event: dict[str, Any]) -> None:
     try:
         if route.parser in ("table", "report", "json"):
             _read_tables(rt, route, file, ctx)
-        else:
-            # Imported here: the document reader needs the LLM client, the
-            # table path must work without it.
-            from lineguard.agents.reader import documents  # pylint: disable=import-outside-toplevel
-            if not documents.read(rt, route, file, ctx):
-                return
+        elif not documents.read(rt, route, file, ctx):
+            return
     except tables.TableError as error:
         db.update(rt.conn, "files", rt.ws, file["id"], parse_status="failed",
                   parse_error=str(error))
@@ -43,12 +40,16 @@ def handle_file(rt: runtime.Runtime, event: dict[str, Any]) -> None:
         return
     db.update(rt.conn, "files", rt.ws, file["id"], parse_status="parsed",
               parse_error=None)
-    emit_facts_updated(rt, ctx.touched)
+    notify.facts_updated(rt, ctx.touched)
+    if route.parser in ("table", "report", "json") and _has_notes(rt, file["id"]):
+        db.emit(rt.conn, rt.ws, "notes.read", {"file_id": file["id"]},
+                priority=3, dedupe_key=f"notes.read:{file['id']}",
+                partition_key=f"file:{file['path']}")
 
 
 def _read_tables(rt: runtime.Runtime, route, file: dict[str, Any], ctx: kinds.Context) -> None:
     data = rt.blob.get(file["blob_key"])
-    rt.conn.execute("BEGIN")
+    rt.conn.execute("BEGIN IMMEDIATE")
     try:
         if route.parser == "table":
             kinds.write(ctx, route.kind or "", tables.load_table(route, file["path"], data))
@@ -70,13 +71,8 @@ def _read_tables(rt: runtime.Runtime, route, file: dict[str, Any], ctx: kinds.Co
     rt.conn.execute("COMMIT")
 
 
-def emit_facts_updated(rt: runtime.Runtime, touched: set[str]) -> None:
-    """One recalculation event per touched part, merged while pending."""
-    if not touched:
-        return
-    if "*" in touched or len(touched) > _MANY_COMPONENTS:
-        touched = {"*"}
-    for component in sorted(touched):
-        db.emit(rt.conn, rt.ws, "facts.updated", {"component_id": component},
-                priority=1, coalesce_key=f"facts.updated:{component}",
-                partition_key="coverage")
+def _has_notes(rt: runtime.Runtime, file_id: int) -> bool:
+    row = db.one(rt.conn, rt.ws,
+                 "SELECT COUNT(*) AS n FROM facts WHERE workspace_id = ? "
+                 "AND fact_type = 'note' AND source_file_id = ?", (file_id,))
+    return bool(row and row["n"])

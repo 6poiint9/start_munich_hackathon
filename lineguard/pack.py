@@ -17,6 +17,8 @@ import yaml
 from lineguard import config
 
 PACK_ENV = "LINEGUARD_PACK"
+# Ranks of the document classes that the core itself creates.
+_DEFAULT_RANK = {"supplier_mail": 2, "count": 1}
 
 
 class PackError(Exception):
@@ -141,7 +143,9 @@ class PackConfig(_Model):
 
     def rank_of(self, doc_class: str | None) -> int:
         """Source rank 1 (physical proof) to 5 (manual list)."""
-        return self.source_rank.get(doc_class or "", 5)
+        if doc_class in self.source_rank:
+            return self.source_rank[doc_class]
+        return _DEFAULT_RANK.get(doc_class or "", 5)
 
 
 def _glob_regex(pattern: str) -> re.Pattern[str]:

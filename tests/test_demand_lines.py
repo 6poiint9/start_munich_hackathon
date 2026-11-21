@@ -1,14 +1,9 @@
-from lineguard import db
 from lineguard.coverage import core
 from tests import helpers
 
 
 def test_two_due_dates_earlier_one_is_served_first(tmp_path, monkeypatch):
     rt = helpers.demo_runtime(tmp_path, monkeypatch)
-    # Take 900 frames away, as the booking check does later.
-    db.insert(rt.conn, "booking_findings", rt.ws, gr_number="WE-1001",
-              component_id="RAHMEN-01", booked_qty=1000, proposed_qty=100,
-              status="proposed", detected_at="x", idempotency_key="t")
 
     state = core.compute(rt)
 
