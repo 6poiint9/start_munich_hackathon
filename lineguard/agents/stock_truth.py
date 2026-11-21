@@ -13,6 +13,7 @@ from lineguard import db
 from lineguard import runtime
 from lineguard.coverage import booking_check
 from lineguard.coverage import core
+from lineguard.coverage import watch
 
 
 def _number(value: float) -> str:
@@ -40,6 +41,7 @@ def recompute(rt: runtime.Runtime, event: dict[str, Any] | None = None) -> core.
         _store_components(rt, state, now)
         _store_demand(rt)
         _store_gaps(rt, state, now)
+        watch.run_watchers(rt)
     except Exception:
         rt.conn.execute("ROLLBACK")
         raise

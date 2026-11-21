@@ -25,7 +25,9 @@ def test_state_header_and_case_list(tmp_path, monkeypatch):
     assert product["coverage_secured"] < 1.0
     assert sum(product["units"].values()) == product["still_to_pack"]
     kinds = [(c["kind"], c["component_id"]) for c in body["cases_now"]]
-    assert kinds == [("gap", "RAHMEN-01"), ("booking_finding", "RAHMEN-01")]
+    assert kinds == [("gap", "RAHMEN-01"), ("watch", "SATTEL-02"),
+                     ("booking_finding", "RAHMEN-01")]
+    assert [c["rule"] for c in body["cases_later"]] == ["revision_mismatch_open_po"]
     assert body["cases_now"][0]["gap_qty"] == -50
     assert body["counters"]["open_corrections"] == 1
     assert body["booking_review"] == {"receipts_checked": 4, "findings": 1}
