@@ -12,6 +12,24 @@ Beginne hier, wenn du Lineguard baust. Diese Datei nennt die Reihenfolge und das
 6. Der Branch `origin/christian` (Paket `soony_tower`) wird nicht gemergt. Er ist die Vorlage für die Funktionen aus `docs/import-und-routen.md` §8. Alles andere entsteht neu nach diesen Spezifikationen.
 7. Jeder Befehl läuft auch ohne `make`: `python -m lineguard init|run|eval|demo-reset`. Das `Makefile` ruft nur diese Befehle auf. Grund: Ein Teil des Teams arbeitet unter Windows.
 
+## Stand der Umsetzung (So 22.11., früh)
+
+Gebaut und mit Tests belegt (`pytest -q`: 76 Tests, CI grün): A1 bis A4, A5 (API), A6 bis A10, B2, B3. Die Seite unter `web/` (A5, Oberfläche) ist in Arbeit.
+
+Auf dem eingefrorenen Soony-Stand liefert die Kette aus echten Dokumenten: Artbook −5.900 (Buchungsbefund `decimal_shift` mit zwei Quellen), Statue −3.400 (Prüfbericht), Hüllen −32.000, Spielkarten −6.800, Sleeves ohne Lücke nach Abzug von 64.000 Rev. B und 4.000 falsch beschrifteten Stück, Magnete ohne Alarm. „System sagt“ 100 %, gesichert 91,8 % und 95,0 %.
+
+Abweichungen von den Spezifikationen:
+
+| Thema | Gebaut | Spezifikation |
+|---|---|---|
+| Orchestrator | Worker-Threads je Gruppe, jeder mit eigener Datenbank-Verbindung | asyncio-Loop |
+| Neuberechnung | Stock Truth rechnet bei jedem `facts.updated` den ganzen Workspace. Alle diese Events teilen die Partition `coverage` | je betroffenes Teil |
+| Generatoren | `accept_offer`, `release_held`, `expedite_inbound`, `rework_sort` in `coverage/options/standard.py`. `reallocate` steckt in der Zuteilung, `count_request` kommt aus der Buchungsprüfung | ein Generator je Datei, dazu `deliver_after_deadline` |
+| Vorrang in Welle 2 | Nur über `priority` der Route | zusätzlich über Kennungen im Dateinamen |
+| Nachprüfung mit dem großen Modell | nicht gebaut. Das schnelle Modell liest die korrigierte Menge richtig | asynchron bei abweichender Druckmenge |
+
+Nicht gebaut: `python -m lineguard eval` und das Golden Set (W4), JSON-Protokoll (W5), `pack check`, `/state?role=`, Fakten-Diff in der Oberfläche (B1; ersetzte Dateien werden verarbeitet und alte Fakten als ersetzt markiert), Widersprüche als eigene Tabelle, Stufe D bis auf README und `demo-save` / `demo-reset`.
+
 ## Stufe 0: Vorbedingungen
 
 Ohne diese Punkte liefert Stufe A falsche Zahlen. Stand Sa 21.11., 22:45 auf dem Rechner, auf dem diese Datei entstand: 0.1 bis 0.5 sind erfüllt (332 Dateien, alle Prüfsummen stimmen). Auf jedem anderen Rechner sind 0.1 bis 0.4 zu wiederholen. Vor Stufe B und vor Stufe D lädt der Watcher den Stand neu, weil das Portal weitere Dateien bekommt.
