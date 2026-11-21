@@ -48,12 +48,15 @@ def accept_offer(rt: runtime.Runtime, state: core.State, component: core.Compone
         data = fact["data"]
         price = fact["value_num"] or _list_price(rt, fact["supplier_id"], component.component_id)
         cost = data.get("total") or (price or 0) * fact["qty"]
-        lead = float(data.get("lead_time_hours") or 0)
+        # Without a stated lead time the arrival is unknown, and the offer
+        # cannot be part of a plan.
+        lead = data.get("lead_time_hours")
+        arrives = state.at + datetime.timedelta(hours=float(lead)) if lead else None
         options.append(_option(
             component, "accept_offer", fact["id"],
             title=f"Angebot annehmen: {_number(fact['qty'])} Stück bestellen",
             qty_gain=fact["qty"], cost_eur=float(cost),
-            arrives_at=state.at + datetime.timedelta(hours=lead),
+            arrives_at=arrives,
             confidence=_CONFIDENCE_DOCUMENT, valid_until=valid_until,
             supplier_id=fact["supplier_id"], action_kind="order",
             needs_roles=engine.route(rt, "purchase_order", float(cost), ["inbound_delivery"]),
@@ -69,7 +72,7 @@ def release_held(rt: runtime.Runtime, state: core.State, component: core.Compone
                 title=f"Abholen: {_number(inbound.qty)} Stück liegen bereit ({inbound.ref})",
                 qty_gain=inbound.qty, arrives_at=inbound.arrives_at,
                 confidence=_CONFIDENCE_STATEMENT, supplier_id=inbound.supplier_id,
-                action_kind="pickup",
+                action_kind="pickup", asks_earlier=True, po_number=inbound.po_number,
                 needs_roles=engine.route(rt, "inbound_delivery"),
                 evidence_fact_ids=inbound.fact_ids)
         for inbound in component.inbound

@@ -104,23 +104,33 @@ def persons(rt: runtime.Runtime, at: datetime.datetime | None = None) -> dict[st
             "roles": [], "categories": []})
         if fact["value_text"] not in person["roles"]:
             person["roles"].append(fact["value_text"])
-        if data.get("category"):
-            person["categories"].append(data["category"])
+        for text in (data.get("category"), data.get("title")):
+            if text:
+                person["categories"].append(str(text))
     return found
 
 
-def resolve_person(rt: runtime.Runtime, role: str, category: str | None = None, at: datetime.datetime | None = None) -> dict[str, Any] | None:
+def resolve_person(rt: runtime.Runtime, role: str, category: str | None = None, at: datetime.datetime | None = None, preferred: list[str] | None = None) -> dict[str, Any] | None:
     """The person who holds a role now.
 
-    Prefers a person of the given category. A vacant role falls back to
-    the fallback role of the policy.
+    Order: a holder among the preferred names (for example the usual
+    buyer of the part), then a holder whose title or category names the
+    category. If holders exist but none fits the category, the position
+    for this category is vacant, and the fallback role of the policy
+    decides. Without a category, the first holder is returned.
     """
     holders = [p for p in persons(rt, at).values() if role in p["roles"]]
-    if category:
+    for name in preferred or []:
+        for person in holders:
+            if person["name"] == name:
+                return person
+    if category and holders:
         matching = [p for p in holders if any(
-            category.lower() in c.lower() or c.lower() in category.lower()
-            for c in p["categories"])]
-        holders = matching or holders
+            category.lower() in c.lower() for c in p["categories"])]
+        if matching:
+            return matching[0]
+        if any(p["categories"] for p in holders) and len(holders) > 1:
+            holders = []
     if holders:
         return holders[0]
     fallback = fallback_role(rt)

@@ -19,6 +19,7 @@ from lineguard.policy import engine
 _LOCKED = ("approved", "in_execution", "confirmed", "delivered", "failed")
 _ESCALATE_BEFORE = datetime.timedelta(minutes=30)
 _FREE_ACTIONS = ("status_request", "count_request")
+_REQUESTS = ("status_request", "pickup")
 
 
 def _number(value: float) -> str:
@@ -33,8 +34,13 @@ def _upsert_option(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any
     arrives = option.get("arrives_at")
     valid_until = option.get("valid_until")
     reason = None
+    # A question or a pickup asks for the arrival that is needed. Its
+    # current date is the thing to change, so it does not rule the option out.
+    is_request = option.get("action_kind") in _REQUESTS
     if arrives is None:
-        reason = "Ankunft unbekannt"
+        reason = None if is_request else "Ankunft unbekannt"
+    elif is_request:
+        reason = None
     elif component.latest_useful_arrival and arrives > component.latest_useful_arrival:
         reason = (f"Ankunft {clock.iso(arrives)} liegt nach der spätesten "
                   f"nützlichen Ankunft {clock.iso(component.latest_useful_arrival)}")
@@ -85,7 +91,7 @@ def _plan(rt: runtime.Runtime, need: float, found: list[dict[str, Any]]) -> tupl
     usable.sort(key=lambda o: (
         o["confidence"] < threshold,
         o["cost_eur"] / o["qty_gain"] if o["qty_gain"] else 0.0,
-        o["arrives_at"] or "9999"))
+        -o["confidence"], o["arrives_at"] or "9999"))
     plan, firm, soft = [], 0.0, 0.0
     for option in usable:
         if firm >= need:
@@ -115,7 +121,12 @@ def _decide(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any], comp
         deadline = component.breaks_at - lead
     if (deadline is None or deadline < state.at) and component.latest_useful_arrival:
         deadline = component.latest_useful_arrival - lead
-    person = engine.resolve_person(rt, roles[0], None)
+    category = _category(rt, component.component_id)
+    person = engine.resolve_person(
+        rt, roles[0], category, preferred=_usual_buyers(rt, component.component_id))
+    if person and roles[0] not in person["roles"]:
+        # Nobody holds the role for this category. The fallback role decides.
+        roles = [*roles, engine.fallback_role(rt)]
     label = rt.pack.labels.get("units", "Stück")
     waiting = f" Jede Stunde Stillstand kostet {_number(rate)} {label}." if rate else ""
     explanation = (
@@ -152,6 +163,23 @@ def _decide(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any], comp
     for option in paid:
         db.update(rt.conn, "options", rt.ws, option["id"], status="proposed",
                   decision_id=decision_id)
+
+
+def _category(rt: runtime.Runtime, component_id: str) -> str | None:
+    row = db.one(rt.conn, rt.ws,
+                 "SELECT category FROM components WHERE workspace_id = ? "
+                 "AND component_id = ?", (component_id,))
+    return row["category"] if row else None
+
+
+def _usual_buyers(rt: runtime.Runtime, component_id: str) -> list[str]:
+    """Names of the buyers on the orders of this part, most frequent first."""
+    counts: dict[str, int] = {}
+    for fact in core.current_facts(rt, "po_line"):
+        buyer = fact["data"].get("buyer")
+        if fact["component_id"] == component_id and buyer and " " in str(buyer):
+            counts[buyer] = counts.get(buyer, 0) + 1
+    return sorted(counts, key=counts.get, reverse=True)
 
 
 def _request_actions(rt: runtime.Runtime, case: dict[str, Any], found: list[dict[str, Any]]) -> None:
@@ -201,15 +229,15 @@ def _close_one(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], case
         for option in generator(rt, state, component):
             found.append(_upsert_option(rt, case, gap, option, component, qty_per))
     plan, firm, soft = _plan(rt, need, found)
-    plan_ids = {o["id"] for o in plan}
+    roles = {}
     covered = 0.0
+    for option in plan:
+        roles[option["id"]] = "primary" if covered < need else "backup"
+        covered += option["qty_gain"]
     for option in found:
-        role = "none"
-        if option["id"] in plan_ids:
-            role = "primary" if covered < need else "backup"
-            covered += option["qty_gain"]
         if option["status"] not in _LOCKED:
-            db.update(rt.conn, "options", rt.ws, option["id"], role_in_plan=role)
+            db.update(rt.conn, "options", rt.ws, option["id"],
+                      role_in_plan=roles.get(option["id"], "none"))
     rates = [state.products[p].rate_per_hour for p in qty_per
              if p in state.products and state.products[p].rate_per_hour]
     _request_actions(rt, case, [o for o in found if o["feasible"]])

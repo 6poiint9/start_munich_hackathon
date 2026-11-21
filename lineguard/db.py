@@ -17,6 +17,12 @@ from typing import Any
 from lineguard import clock
 from lineguard import config
 
+LOG_ONLY_EVENTS = frozenset({
+    "option.created", "decision.created", "decision.escalated",
+    "decision.approved", "gap.unclosable", "finding.created",
+    "correction.proposed", "correction.verified", "action.created",
+    "email.drafted", "email.sent", "email.received",
+})
 _MIGRATIONS_DIR = pathlib.Path(__file__).parent / "migrations"
 _SCHEMA_VERSION_TABLE = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -149,12 +155,16 @@ def emit(
     events only, so ten new facts for one part cause one recalculation.
     """
     now = clock.iso()
+    # An event without a handler is a log entry. It is stored as done, so
+    # it never counts as waiting work.
+    status = "done" if event_type in LOG_ONLY_EVENTS else "pending"
     try:
         return insert(
             conn, "events", ws,
             type=event_type, priority=priority, payload=dict(payload or {}),
             dedupe_key=dedupe_key, coalesce_key=coalesce_key,
             partition_key=partition_key, available_at=now, created_at=now,
+            status=status,
         )
     except sqlite3.IntegrityError:
         return None

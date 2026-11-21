@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 _PROMPTS = pathlib.Path(__file__).resolve().parent.parent / "prompts"
 _ATTACHMENT_TYPES = (".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg", ".txt", ".csv")
 _DONE_STATUS = ("sent", "dry_run")
+_LANGUAGES = {
+    "en": "English", "de": "German", "pl": "Polish", "ko": "Korean",
+    "zh": "Chinese (Simplified)", "fr": "French", "es": "Spanish",
+    "it": "Italian", "ja": "Japanese",
+}
 _PURPOSE_TEXT = {
     "order": "We accept your offer and order the goods listed below. Please confirm the quantity and the arrival time.",
     "pickup": "The goods listed below are ready and not received yet. Please arrange the release and the delivery to our site, and confirm the arrival time.",
@@ -53,7 +58,7 @@ def _facts_for_mail(rt: runtime.Runtime, option: dict[str, Any], case: dict[str,
         "released_revision": component.get("released_rev"),
         "quantity": option["qty_gain"], "po_number": data.get("po_number") or case.get("po_number"),
         "wanted": "earlier arrival" if data.get("asks_earlier") else None,
-        "option": option["title"], "cost_eur": option["cost_eur"] or None,
+        "cost_eur": option["cost_eur"] or None,
         "arrival_needed_before": db.loads(case.get("detail"), {}).get("latest_useful_arrival"),
         "delivery_site": rt.pack.site, "due_date": case.get("due_at"),
         "offer_valid_until": option.get("valid_until"),
@@ -83,7 +88,8 @@ def write_draft(rt: runtime.Runtime, purpose: str, option: dict[str, Any], case:
     draft = _template(purpose, facts, sender, hours)
     if rt.llm is not None:
         system = ((_PROMPTS / "email_draft.md").read_text(encoding="utf-8")
-                  .replace("[LANGUAGE]", contact.get("language") or "en")
+                  .replace("[LANGUAGE]", _LANGUAGES.get(
+                      contact.get("language") or "en", contact.get("language") or "English"))
                   .replace("[REPLY_HOURS]", f"{hours:g}")
                   .replace("[SENDER]", sender).replace("[SUBJECT_PREFIX]", prefix))
         prompt = (f"Purpose: {purpose}\nWhat the mail must say: {_PURPOSE_TEXT[purpose]}\n"
@@ -145,7 +151,8 @@ def handle_requested(rt: runtime.Runtime, event: dict[str, Any]) -> None:
     email_id = db.insert(
         rt.conn, "emails", rt.ws, action_id=action_id, case_id=case["id"],
         direction="out", from_addr=mailer(rt).address, to_addr=contact["email"],
-        subject=draft.subject, body=draft.body, language=draft.language,
+        subject=draft.subject, body=draft.body,
+        language=contact["language"] or draft.language,
         po_ref=db.loads(option["data"], {}).get("po_number"),
         status="approved" if routine else "draft", routine=routine,
         commits_money=draft.commits_money or purpose == "order",

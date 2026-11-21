@@ -435,6 +435,11 @@ def _inbound(rt: runtime.Runtime, state: State) -> None:
         component = state.components.get(fact["component_id"] or "")
         if component is None or not fact.get("qty"):
             continue
+        # A document about an order is better than the shipment list. It
+        # replaces the entry from the list for the same order.
+        component.inbound = [
+            i for i in component.inbound
+            if not (i.po_number and i.po_number == fact.get("po_number") and i.rank > fact["source_rank"])]
         eta = _when(rt, fact.get("eta"))
         component.inbound.append(Inbound(
             component.component_id, fact["qty"], eta,
