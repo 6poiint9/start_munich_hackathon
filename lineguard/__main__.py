@@ -5,6 +5,8 @@ Commands:
     run         start the API and the agents
     import      load the files of the source once and compute the state
     recompute   compute the state again from the stored facts
+    reread      read files again whose path contains a text
+    send-logged send the mails that DRY_RUN only logged (needs MAIL_MODE=LIVE)
     demo-save   store the current state as the demo start state
     demo-reset  restore the demo start state
 """
@@ -29,6 +31,9 @@ def _build_parser() -> argparse.ArgumentParser:
     evaluate = commands.add_parser("eval")
     evaluate.add_argument("pack", nargs="?")
     commands.add_parser("recompute")
+    reread = commands.add_parser("reread")
+    reread.add_argument("text", help="part of the file path")
+    commands.add_parser("send-logged")
     commands.add_parser("demo-save")
     commands.add_parser("demo-reset")
     return parser

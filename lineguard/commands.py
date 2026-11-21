@@ -15,6 +15,7 @@ from lineguard import orchestrator
 from lineguard import pack as pack_module
 from lineguard import pipeline
 from lineguard import runtime
+from lineguard.agents import action
 from lineguard.agents import watcher
 from lineguard.connectors import blob as blob_module
 from lineguard.connectors import source as source_module
@@ -41,7 +42,8 @@ def run(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     handlers = {"init": _init, "import": _import, "run": _run,
-                "recompute": _recompute, "demo-save": _demo_save,
+                "recompute": _recompute, "reread": _reread,
+                "send-logged": _send_logged, "demo-save": _demo_save,
                 "demo-reset": _demo_reset}
     handler = handlers.get(args.command)
     if handler is None:
@@ -64,6 +66,7 @@ def import_all(pack: pack_module.PackConfig, with_llm: bool) -> dict[str, int]:
     rt = make_runtime()
     with contextlib.closing(rt.conn):
         changes = pipeline.import_wave_one(rt, source_module.from_pack(pack))
+        _tick(rt)
     handled = 0
     if with_llm and rt.llm is not None:
         handled = orchestrator.run_until_empty(make_runtime)
@@ -89,6 +92,61 @@ def _recompute(_: argparse.Namespace) -> int:
         _tick(rt)
         handled = pipeline.drain(rt)
     print(f"Workspace '{pack.workspace}': {handled} events handled")
+    return 0
+
+
+def _reread(args: argparse.Namespace) -> int:
+    """Reads files again whose path contains the text, with the current prompt."""
+    pack = pack_module.load()
+    make_runtime = runtime_factory(pack)
+    rt = make_runtime()
+    with contextlib.closing(rt.conn):
+        files = db.rows(
+            rt.conn, rt.ws,
+            "SELECT * FROM files WHERE workspace_id = ? AND is_current = 1 "
+            "AND path LIKE ?", (f"%{args.text}%",))
+        for file in files:
+            rt.conn.execute(
+                "DELETE FROM facts WHERE workspace_id = ? AND source_file_id = ?",
+                (rt.ws, file["id"]))
+            db.update(rt.conn, "files", rt.ws, file["id"], parse_status="new")
+            db.emit(rt.conn, rt.ws, "file.changed",
+                    {"file_id": file["id"], "path": file["path"]}, priority=2,
+                    partition_key=f"file:{file['path']}")
+        _tick(rt)
+        handled = pipeline.drain(rt)
+    print(f"Workspace '{pack.workspace}': {len(files)} files read again, "
+          f"{handled} events handled")
+    return 0
+
+
+def _send_logged(_: argparse.Namespace) -> int:
+    """Sends the mails that DRY_RUN only wrote to the log.
+
+    Use it after a switch to MAIL_MODE=LIVE. Only approved mails are sent:
+    routine questions and mails that a person approved. Drafts stay drafts.
+    """
+    pack = pack_module.load()
+    rt = runtime_factory(pack, with_llm=False)()
+    with contextlib.closing(rt.conn):
+        if action.mailer(rt).mode != "LIVE":
+            print("MAIL_MODE is not LIVE. Nothing sent.")
+            return 1
+        logged = db.rows(
+            rt.conn, rt.ws,
+            "SELECT * FROM emails WHERE workspace_id = ? AND direction = 'out' "
+            "AND status = 'dry_run' AND to_addr LIKE '%@%' ORDER BY id")
+        seen = set()
+        for row in logged:
+            key = (row["to_addr"], row["po_ref"], row["case_id"])
+            if key in seen:
+                db.update(rt.conn, "emails", rt.ws, row["id"], status="discarded",
+                          reason="Doppelt: gleiche Frage an denselben Empfänger")
+                continue
+            seen.add(key)
+            db.update(rt.conn, "emails", rt.ws, row["id"], status="approved")
+            sent = action.send(rt, row["id"], row["approved_by"] or "auto_approve")
+            print(f"{sent['status']}: {row['to_addr']} | {row['subject']}")
     return 0
 
 

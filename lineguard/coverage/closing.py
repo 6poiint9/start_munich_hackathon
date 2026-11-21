@@ -30,10 +30,32 @@ def _iso(moment: datetime.datetime | None) -> str | None:
     return clock.iso(moment) if moment else None
 
 
-def _upsert_option(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any], option: dict[str, Any], component: core.ComponentState, qty_per: dict[str, float]) -> dict[str, Any]:
+def _still_usable(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], arrives: datetime.datetime, qty_per: dict[str, float]) -> float:
+    """Parts of a late delivery that can still pass the line before the due date.
+
+    Goods after the latest useful arrival do not close the whole gap, but
+    every hour of line time that is left still saves units.
+    """
+    due = clock.parse(gap["due_at"]) if gap.get("due_at") else state.next_due
+    if due is None:
+        return 0.0
+    start = arrives + datetime.timedelta(hours=rt.pack.coverage.default_handling_hours)
+    usable = 0.0
+    for product_id, per in qty_per.items():
+        product = state.products.get(product_id)
+        if product is None or not product.rate_per_hour or not per:
+            continue
+        hours = (core.shift_hours(state.shifts, start, due) if state.shifts
+                 else max((due - start).total_seconds() / 3600, 0.0))
+        usable += hours * product.rate_per_hour * per
+    return usable
+
+
+def _upsert_option(rt: runtime.Runtime, state: core.State, case: dict[str, Any], gap: dict[str, Any], option: dict[str, Any], component: core.ComponentState, qty_per: dict[str, float]) -> dict[str, Any]:
     arrives = option.get("arrives_at")
     valid_until = option.get("valid_until")
     reason = None
+    note = None
     # A question or a pickup asks for the arrival that is needed. Its
     # current date is the thing to change, so it does not rule the option out.
     is_request = option.get("action_kind") in _REQUESTS
@@ -42,8 +64,15 @@ def _upsert_option(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any
     elif is_request:
         reason = None
     elif component.latest_useful_arrival and arrives > component.latest_useful_arrival:
-        reason = (f"Ankunft {clock.iso(arrives)} liegt nach der spätesten "
-                  f"nützlichen Ankunft {clock.iso(component.latest_useful_arrival)}")
+        usable = min(option["qty_gain"], _still_usable(rt, state, gap, arrives, qty_per))
+        if usable >= 1:
+            note = (f"Kommt spät: Von {_number(option['qty_gain'])} Stück schaffen es "
+                    f"noch {_number(usable)} durch die Linie")
+            option = {**option, "qty_gain": float(int(usable)),
+                      "title": f"{option['title']} (spät, {_number(usable)} nutzbar)"}
+        else:
+            reason = (f"Ankunft {clock.iso(arrives)} liegt nach der spätesten "
+                      f"nützlichen Ankunft {clock.iso(component.latest_useful_arrival)}")
     if valid_until and valid_until <= clock.now():
         reason = "Angebot ist abgelaufen"
     units = {product: option["qty_gain"] / per for product, per in qty_per.items() if per}
@@ -57,8 +86,8 @@ def _upsert_option(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any
         "evidence_fact_ids": option["evidence_fact_ids"],
         "supplier_id": option.get("supplier_id"),
         "action_kind": option.get("action_kind"),
-        "data": {k: v for k, v in option.items()
-                 if k in ("asks_earlier", "po_number")},
+        "data": {"note": note, **{k: v for k, v in option.items()
+                                  if k in ("asks_earlier", "po_number")}},
         "updated_at": clock.iso(),
     }
     existing = db.one(
@@ -234,7 +263,8 @@ def _close_one(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], case
     found = []
     for generator in options_module.GENERATORS:
         for option in generator(rt, state, component):
-            found.append(_upsert_option(rt, case, gap, option, component, qty_per))
+            found.append(_upsert_option(rt, state, case, gap, option, component, qty_per))
+    _expire_stale(rt, case, {o["id"] for o in found})
     plan, firm, soft = _plan(rt, need, found)
     roles = {}
     covered = 0.0
@@ -264,6 +294,23 @@ def _close_one(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], case
     if new_state != case["state"]:
         db.update(rt.conn, "cases", rt.ws, case["id"], state=new_state,
                   updated_at=clock.iso())
+
+
+def _expire_stale(rt: runtime.Runtime, case: dict[str, Any], current_ids: set[int]) -> None:
+    """An option whose facts are gone expires, and its mail draft with it."""
+    for row in db.rows(
+            rt.conn, rt.ws,
+            "SELECT id, status FROM options WHERE workspace_id = ? AND case_id = ?",
+            (case["id"],)):
+        if row["id"] in current_ids or row["status"] in (*_LOCKED, "expired"):
+            continue
+        db.update(rt.conn, "options", rt.ws, row["id"], status="expired",
+                  feasible=0, role_in_plan="none",
+                  infeasible_reason="Der Beleg zu dieser Option gilt nicht mehr")
+        rt.conn.execute(
+            "UPDATE emails SET status = 'discarded' WHERE workspace_id = ? "
+            "AND status = 'draft' AND action_id IN (SELECT id FROM actions "
+            "WHERE workspace_id = ? AND option_id = ?)", (rt.ws, rt.ws, row["id"]))
 
 
 def _escalate(rt: runtime.Runtime, state: core.State) -> None:

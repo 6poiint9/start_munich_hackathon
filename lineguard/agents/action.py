@@ -310,13 +310,17 @@ def poll_and_follow_up(rt: runtime.Runtime, event: dict[str, Any] | None = None)
 
 
 def _follow_up(rt: runtime.Runtime) -> None:
-    """One reminder for a sent question without reply after the wait time."""
+    """One reminder for a sent question without reply after the wait time.
+
+    Only mails that really went out count. A mail that DRY_RUN only logged
+    cannot get an answer.
+    """
     limit = clock.now() - datetime.timedelta(hours=rt.pack.mail.follow_up_hours)
     waiting = db.rows(
         rt.conn, rt.ws,
         "SELECT e.* FROM emails e JOIN cases c ON c.id = e.case_id "
         "WHERE e.workspace_id = ? AND e.direction = 'out' AND e.in_reply_to IS NULL "
-        "AND e.status IN ('sent', 'dry_run') AND e.sent_at < ? "
+        "AND e.status = 'sent' AND e.sent_at < ? "
         "AND c.state NOT IN ('closed', 'dismissed') "
         "AND NOT EXISTS (SELECT 1 FROM emails r WHERE r.workspace_id = e.workspace_id "
         "AND r.in_reply_to = e.message_id)", (clock.iso(limit),))

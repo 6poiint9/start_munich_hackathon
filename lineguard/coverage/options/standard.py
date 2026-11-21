@@ -50,8 +50,9 @@ def accept_offer(rt: runtime.Runtime, state: core.State, component: core.Compone
         cost = data.get("total") or (price or 0) * fact["qty"]
         # Without a stated lead time the arrival is unknown, and the offer
         # cannot be part of a plan.
-        lead = data.get("lead_time_hours")
-        arrives = state.at + datetime.timedelta(hours=float(lead)) if lead else None
+        parts = [data.get(key) for key in ("ready_hours", "transport_hours", "lead_time_hours")]
+        hours = sum(float(part) for part in parts if part)
+        arrives = state.at + datetime.timedelta(hours=hours) if hours else None
         options.append(_option(
             component, "accept_offer", fact["id"],
             title=f"Angebot annehmen: {_number(fact['qty'])} Stück bestellen",

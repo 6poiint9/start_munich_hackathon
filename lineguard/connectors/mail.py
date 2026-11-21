@@ -85,7 +85,7 @@ class Mailer:
     def _poll_imap(self, senders: list[str], known_ids: set[str]) -> list[email.message.EmailMessage]:
         found = []
         try:
-            with imaplib.IMAP4_SSL(IMAP_HOST) as imap:
+            with imaplib.IMAP4_SSL(IMAP_HOST, timeout=30) as imap:
                 imap.login(self.address, self._password)
                 imap.select("INBOX", readonly=True)
                 for sender in sorted(set(senders)):
