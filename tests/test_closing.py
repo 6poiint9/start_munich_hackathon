@@ -42,6 +42,9 @@ def test_every_blocking_gap_has_a_plan_with_decision(tmp_path, monkeypatch):
     assert decision["approver_role"] == "buyer"
     assert decision["approver_name"] == "Anna Beispiel"
     assert "4.500 €" in decision["explanation"]
+    # The person sees the exact mail before the click. It is not sent yet.
+    drafts = _rows(rt, "emails")
+    assert [(m["status"], m["commits_money"], m["routine"]) for m in drafts] == [("draft", 1, 0)]
 
 
 def test_option_after_latest_useful_arrival_is_not_feasible(tmp_path, monkeypatch):
@@ -146,4 +149,4 @@ def test_rejected_decision_reopens_the_case(tmp_path, monkeypatch):
     pipeline.drain(rt)
     assert response.json()["status"] == "rejected"
     assert _rows(rt, "cases", "kind = 'gap'")[0]["state"] == "unclosable"
-    assert _rows(rt, "emails", "commits_money = 1") == []
+    assert [m["status"] for m in _rows(rt, "emails", "commits_money = 1")] == ["discarded"]

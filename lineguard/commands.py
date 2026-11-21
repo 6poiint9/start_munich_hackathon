@@ -150,7 +150,8 @@ def _run(args: argparse.Namespace) -> int:
         workers.every(60.0, _tick)
         workers.start()
     try:
-        uvicorn.run(main_module.create_app(pack), host="127.0.0.1", port=args.port)
+        uvicorn.run(main_module.create_app(pack, llm=llm_module.from_env()),
+                    host="127.0.0.1", port=args.port)
     finally:
         workers.stop()
     return 0

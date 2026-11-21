@@ -21,7 +21,7 @@ from lineguard.connectors import source as source_module
 from lineguard.policy import engine
 
 
-def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None) -> fastapi.FastAPI:
+def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None, llm: Any = None) -> fastapi.FastAPI:
     """Builds the API for one workspace.
 
     Each request opens its own database connection. SQLite allows many
@@ -39,7 +39,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None)
         conn = db.connect(pack.workspace)
         store = blob_module.LocalBlobStore(config.data_dir(pack.workspace))
         with contextlib.closing(conn):
-            yield runtime.Runtime(conn=conn, pack=pack, blob=store)
+            yield runtime.Runtime(conn=conn, pack=pack, blob=store, llm=llm)
 
     app.state.open_runtime = open_runtime
     runtime_dependency = fastapi.Depends(open_runtime)

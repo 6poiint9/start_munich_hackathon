@@ -43,7 +43,8 @@ def test_erp_owner_approves_once_and_files_are_written(tmp_path, monkeypatch):
     out = tmp_path / "data" / "demo_bikes" / "out"
     assert (out / "corrections" / f"{correction_id}.json").is_file()
     assert len((out / "corrections.csv").read_text().splitlines()) == 2
-    mails = db.rows(rt.conn, rt.ws, "SELECT * FROM emails WHERE workspace_id = ?")
+    mails = db.rows(rt.conn, rt.ws,
+                    "SELECT * FROM emails WHERE workspace_id = ? AND routine = 1")
     assert len(mails) == 1
 
 

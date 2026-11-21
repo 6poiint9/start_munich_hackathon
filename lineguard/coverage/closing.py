@@ -163,6 +163,13 @@ def _decide(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any], comp
     for option in paid:
         db.update(rt.conn, "options", rt.ws, option["id"], status="proposed",
                   decision_id=decision_id)
+    # The mail of the recommended option is written now, so the person
+    # sees the exact text before the click. It is sent only after approval.
+    if recommended.get("supplier_id"):
+        db.emit(rt.conn, rt.ws, "action.requested",
+                {"option_id": recommended["id"], "case_id": case["id"]},
+                partition_key=f"case:{case['id']}",
+                dedupe_key=f"action.requested:{recommended['id']}")
 
 
 def _category(rt: runtime.Runtime, component_id: str) -> str | None:

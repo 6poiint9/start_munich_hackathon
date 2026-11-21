@@ -24,6 +24,11 @@ def test_instruction_in_document_becomes_a_flag_not_an_action(tmp_path, monkeypa
     rt = helpers.demo_runtime(tmp_path, monkeypatch)
     rt.llm = fakes.FakeLlm(_answer)
 
+    def counts():
+        return [len(db.rows(rt.conn, rt.ws, f"SELECT id FROM {table} WHERE workspace_id = ?"))
+                for table in ("actions", "emails", "options", "decisions")]
+    before = counts()
+
     pipeline.drain(rt)
 
     flagged = db.rows(rt.conn, rt.ws,
@@ -32,8 +37,11 @@ def test_instruction_in_document_becomes_a_flag_not_an_action(tmp_path, monkeypa
     assert any(f["suspicious_reason"] == "New bank account requested" for f in flagged)
     # A suspicious fact counts in no calculation and causes no action.
     assert core.current_facts(rt, "inbound_qty") == []
-    assert db.rows(rt.conn, rt.ws, "SELECT * FROM actions WHERE workspace_id = ?") == []
-    assert db.rows(rt.conn, rt.ws, "SELECT * FROM emails WHERE workspace_id = ?") == []
+    assert counts() == before
+    sent = db.rows(rt.conn, rt.ws,
+                   "SELECT * FROM emails WHERE workspace_id = ? "
+                   "AND status IN ('sent', 'dry_run')")
+    assert sent == []
     assert "do not follow" in rt.llm.calls[0]["system"]
 
 

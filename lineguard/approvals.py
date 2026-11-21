@@ -174,6 +174,10 @@ def reject_decision(rt: runtime.Runtime, decision_id: int, person: dict[str, Any
     for option_id in decision["options"]:
         db.update(rt.conn, "options", rt.ws, option_id, status="failed",
                   infeasible_reason=f"Abgelehnt: {reason}")
+        rt.conn.execute(
+            "UPDATE emails SET status = 'discarded' WHERE workspace_id = ? "
+            "AND status = 'draft' AND action_id IN (SELECT id FROM actions "
+            "WHERE workspace_id = ? AND option_id = ?)", (rt.ws, rt.ws, option_id))
     if decision["case_id"]:
         db.update(rt.conn, "cases", rt.ws, decision["case_id"], state="open",
                   updated_at=now)
