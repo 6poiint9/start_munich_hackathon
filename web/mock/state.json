@@ -1,0 +1,117 @@
+{
+ "workspace": "demo_bikes",
+ "customer": "Radwerk Demo",
+ "labels": {
+  "deadline": "Auslieferung",
+  "product": "Modell",
+  "line": "Montagelinie",
+  "units": "Räder"
+ },
+ "at": "2027-03-01T07:00:00Z",
+ "next_due": "2027-03-05T15:00:00Z",
+ "timezone": "Europe/Berlin",
+ "import": {
+  "files_total": 14,
+  "files_read": 13,
+  "failed": 0,
+  "manual": 0
+ },
+ "products": [
+  {
+   "product_id": "BIKE-CITY",
+   "description": "Stadtrad City",
+   "demand": 700.0,
+   "packed": 100.0,
+   "packed_as_of": "2027-02-28T22:59:00Z",
+   "still_to_pack": 600.0,
+   "rate_per_hour": null,
+   "hours_left": null,
+   "coverage_system": 1.0,
+   "coverage_secured": 0.9285714285714286,
+   "units": {
+    "secured": 550.0,
+    "planned": 0.0,
+    "open": 50.0,
+    "unclosable": 0
+   },
+   "limiting_component": "RAHMEN-01"
+  }
+ ],
+ "first_stop": null,
+ "cases_now": [
+  {
+   "id": 1,
+   "kind": "gap",
+   "rule": null,
+   "title": "Rahmen Alu: 50 fehlen, 50 Räder in Gefahr",
+   "impact": "deadline_blocker",
+   "state": "open",
+   "rank": 1,
+   "component_id": "RAHMEN-01",
+   "product_id": "BIKE-CITY",
+   "supplier_id": null,
+   "po_number": null,
+   "due_at": "2027-03-12T16:00:00+01:00",
+   "act_by": null,
+   "breaks_at": null,
+   "owner_role": null,
+   "gap_qty": -50.0,
+   "units_at_risk": 50.0,
+   "residual_qty": null,
+   "pending": {
+    "decisions": 0,
+    "corrections": 0,
+    "emails": 0
+   },
+   "updated_at": "2027-03-01T07:00:00Z"
+  }
+ ],
+ "cases_later": [],
+ "counters": {
+  "now_total": 1,
+  "later_total": 0,
+  "open_decisions": 0,
+  "open_corrections": 0,
+  "open_emails": 0
+ },
+ "booking_review": {
+  "receipts_checked": 4,
+  "findings": 1
+ },
+ "problems": [],
+ "people": [
+  {
+   "person_id": "P1",
+   "name": "Anna Beispiel",
+   "roles": [
+    "buyer"
+   ],
+   "category": null
+  },
+  {
+   "person_id": "P2",
+   "name": "Bernd Muster",
+   "roles": [
+    "category_lead"
+   ],
+   "category": null
+  },
+  {
+   "person_id": "P3",
+   "name": "Clara Test",
+   "roles": [
+    "erp_owner"
+   ],
+   "category": null
+  },
+  {
+   "person_id": "P4",
+   "name": "Dora Demo",
+   "roles": [
+    "site_lead"
+   ],
+   "category": null
+  }
+ ],
+ "mail_mode": "DRY_RUN"
+}

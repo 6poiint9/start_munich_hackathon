@@ -1,0 +1,95 @@
+{
+ "case": {
+  "id": 1,
+  "kind": "gap",
+  "rule": null,
+  "title": "Rahmen Alu: 50 fehlen, 50 Räder in Gefahr",
+  "impact": "deadline_blocker",
+  "state": "open",
+  "rank": 1,
+  "component_id": "RAHMEN-01",
+  "product_id": "BIKE-CITY",
+  "supplier_id": null,
+  "po_number": null,
+  "due_at": "2027-03-12T16:00:00+01:00",
+  "act_by": null,
+  "breaks_at": null,
+  "owner_role": null,
+  "gap_qty": -50.0,
+  "units_at_risk": 50.0,
+  "residual_qty": null,
+  "pending": {
+   "decisions": 0,
+   "corrections": 0,
+   "emails": 0
+  },
+  "updated_at": "2027-03-01T07:00:00Z",
+  "detail": {
+   "erp_stock": 1450.0,
+   "stock_as_of": "2027-02-28",
+   "used_since_snapshot": 0.0,
+   "usable": 550.0,
+   "need": 600.0,
+   "inbound_secured": 0.0,
+   "gap_system": 0.0,
+   "batch_unknown": false,
+   "latest_useful_arrival": "2027-03-12T13:00:00Z",
+   "blocks": [
+    {
+     "reason": "booking_finding",
+     "qty": 900.0,
+     "text": "Wareneingang WE-1001: 1.000 gebucht. 100 belegt",
+     "fact_ids": []
+    }
+   ],
+   "short_lines": [
+    {
+     "product_id": "BIKE-CITY",
+     "class": "open_sale",
+     "due_at": "2027-03-12T16:00:00+01:00",
+     "gap_qty": -50.0,
+     "units_at_risk": 50.0
+    }
+   ],
+   "inbound": []
+  }
+ },
+ "evidence": [
+  {
+   "fact_id": 5,
+   "fact_type": "stock_qty",
+   "label": "Bestand laut ERP",
+   "qty": 1450.0,
+   "value_num": null,
+   "value_text": null,
+   "rev": null,
+   "batch": null,
+   "ref": null,
+   "po_number": null,
+   "component_id": "RAHMEN-01",
+   "eta": null,
+   "valid_until": null,
+   "doc_date": null,
+   "as_of": "2027-02-28",
+   "source_rank": 4,
+   "confidence": 1.0,
+   "extracted_by": "parser",
+   "suspicious": false,
+   "data": {
+    "last_count": "2027-02-20"
+   },
+   "file": {
+    "id": 3,
+    "path": "bestand.csv",
+    "version": 1
+   },
+   "locator": "row 3"
+  }
+ ],
+ "finding": null,
+ "corrections": [],
+ "options": [],
+ "decisions": [],
+ "emails": [],
+ "actions": []
+}

@@ -129,7 +129,8 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
         return found
 
     @app.post("/sync")
-    def post_sync(rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
+    def post_sync(request: fastapi.Request, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
+        current_person(rt, request, None)
         return {"changes": watcher.sync(rt, source_module.from_pack(rt.pack))}
 
     @app.post("/corrections/{correction_id}/approve")

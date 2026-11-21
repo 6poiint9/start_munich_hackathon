@@ -1,0 +1,251 @@
+@import 'tailwindcss';
+
+/*
+ * Lineguard tokens. The world is a goods-receipt ledger: copy paper, blue-black
+ * ink, one stamp blue for the human action, and the three signal colors of a
+ * line (checked green, andon amber, stop red). Color always repeats a word or
+ * a pattern. It never carries a meaning alone.
+ */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+
+  /* Surfaces: one hue, small steps of lightness. */
+  --color-paper: #f3f2ed;
+  --color-sheet: #fcfbf8;
+  --color-well: #eceae3;
+
+  /* Ink: four levels of text. */
+  --color-ink: #17212b;
+  --color-ink-2: #3c4753;
+  --color-ink-3: #55616d;
+  --color-ink-4: #646e7a;
+
+  /* Rules: hairlines that separate without shouting. */
+  --color-rule: rgb(23 33 43 / 0.1);
+  --color-rule-2: rgb(23 33 43 / 0.2);
+  --color-rule-ink: rgb(23 33 43 / 0.62);
+
+  /* Stamp: the approval of a human. The only accent. */
+  --color-stamp: #24449c;
+  --color-stamp-deep: #1a3378;
+  --color-stamp-wash: #e8ecf7;
+
+  /* Signals. */
+  --color-go: #1c6843;
+  --color-go-fill: #2a7d53;
+  --color-go-wash: #e1eee6;
+  --color-work: #3f5fb8;
+  --color-work-wash: #dfe5f6;
+  --color-wait: #874600;
+  --color-wait-fill: #c27708;
+  --color-wait-wash: #faeed6;
+  --color-stop: #a3261d;
+  --color-stop-fill: #b93a30;
+  --color-stop-wash: #f9e7e3;
+
+  /* Type scale: ratio 1.2 from a 13px body. */
+  --text-*: initial;
+  --text-cap: 0.6875rem;
+  --text-cap--line-height: 1rem;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.125rem;
+  --text-body: 0.8125rem;
+  --text-body--line-height: 1.25rem;
+  --text-lead: 0.9375rem;
+  --text-lead--line-height: 1.375rem;
+  --text-title: 1.125rem;
+  --text-title--line-height: 1.5rem;
+  --text-figure: 1.375rem;
+  --text-figure--line-height: 1.75rem;
+  --text-hero: 2.5rem;
+  --text-hero--line-height: 2.5rem;
+
+  /* Radius scale: tight, like printed forms. */
+  --radius-*: initial;
+  --radius-tag: 2px;
+  --radius-ctl: 4px;
+  --radius-sheet: 6px;
+  --radius-panel: 8px;
+
+  --ease-out-firm: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@theme inline {
+  --font-sans:
+    var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+  --font-mono:
+    var(--font-plex-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-stamp);
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button,
+  summary,
+  select {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  ::selection {
+    background-color: var(--color-stamp-wash);
+  }
+}
+
+/* Numbers, part numbers and clock times: the voice of the ledger. */
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Small tracked capitals for the names of fields. */
+@utility field-name {
+  font-size: var(--text-cap);
+  line-height: var(--text-cap--line-height);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+/* Fill patterns. Each state of a unit has its own texture, so the bar reads
+   without color. */
+@utility fill-secured {
+  background-color: var(--color-go-fill);
+}
+
+@utility fill-planned {
+  background-color: var(--color-work-wash);
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--color-work) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+@utility fill-open {
+  background-color: var(--color-wait-wash);
+  background-image: radial-gradient(
+    var(--color-wait-fill) 1.25px,
+    transparent 1.5px
+  );
+  background-size: 5px 5px;
+}
+
+@utility fill-unclosable {
+  background-color: var(--color-stop-wash);
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      var(--color-stop-fill) 0 1.5px,
+      transparent 1.5px 6px
+    ),
+    repeating-linear-gradient(
+      135deg,
+      var(--color-stop-fill) 0 1.5px,
+      transparent 1.5px 6px
+    );
+}
+
+/* The gap between what the system says and what a document proves. */
+@utility fill-gap {
+  background-color: var(--color-stop-wash);
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--color-stop-fill) 0 1.5px,
+    transparent 1.5px 5px
+  );
+}
+
+@utility press {
+  transition:
+    background-color 120ms var(--ease-out-firm),
+    border-color 120ms var(--ease-out-firm),
+    transform 120ms var(--ease-out-firm);
+
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:active:not(:disabled) {
+      transform: none;
+    }
+  }
+}
+
+dialog.file-panel {
+  transition:
+    opacity 180ms var(--ease-out-firm),
+    transform 180ms var(--ease-out-firm),
+    overlay 180ms allow-discrete,
+    display 180ms allow-discrete;
+  opacity: 0;
+  transform: translateX(16px);
+}
+
+dialog.file-panel[open] {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+@starting-style {
+  dialog.file-panel[open] {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+dialog.file-panel::backdrop {
+  background-color: rgb(23 33 43 / 0.32);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.file-panel {
+    transition: none;
+    transform: none;
+  }
+}
