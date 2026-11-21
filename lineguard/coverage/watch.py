@@ -74,13 +74,18 @@ def validity_expiring(rt: runtime.Runtime, now: datetime.datetime) -> list[dict[
     for fact_type in ("validity", "release_status"):
         for fact in core.current_facts(rt, fact_type):
             key = (fact_type, fact.get("supplier_id") or "", fact.get("value_text") or "")
-            if key not in newest or (fact.get("valid_until") or "") > (newest[key].get("valid_until") or ""):
+            if not fact.get("valid_until"):
+                continue
+            # Two sources can name two end dates. The earlier one is the risk.
+            if key not in newest or fact["valid_until"] < newest[key]["valid_until"]:
                 newest[key] = fact
     for (fact_type, supplier, text), fact in newest.items():
         until = core.timeutil.to_datetime(fact.get("valid_until"), rt.pack.timezone)
-        if until is None or until > horizon or not supplier:
-            continue
         days = fact["data"].get("notice_days") or rt.pack.watch.default_notice_days
+        if until is None or not supplier:
+            continue
+        if until - datetime.timedelta(days=float(days)) > horizon:
+            continue
         what = "Lieferanten-Freigabe" if fact_type == "release_status" else "Vertrag"
         state = "ist abgelaufen am" if until <= now else "läuft aus am"
         cases.append(_case(

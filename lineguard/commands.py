@@ -3,6 +3,8 @@
 import argparse
 import contextlib
 import logging
+import pathlib
+import sqlite3
 
 import uvicorn
 
@@ -38,7 +40,9 @@ def run(args: argparse.Namespace) -> int:
     """Dispatches one parsed command."""
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    handlers = {"init": _init, "import": _import, "run": _run}
+    handlers = {"init": _init, "import": _import, "run": _run,
+                "recompute": _recompute, "demo-save": _demo_save,
+                "demo-reset": _demo_reset}
     handler = handlers.get(args.command)
     if handler is None:
         print(f"Command '{args.command}' is not built yet.")
@@ -71,6 +75,56 @@ def _import(args: argparse.Namespace) -> int:
     result = import_all(pack, with_llm=not args.no_llm)
     print(f"Workspace '{pack.workspace}': {result['changes']} file changes, "
           f"{result['wave_two_events']} events in wave 2")
+    return 0
+
+
+def _recompute(_: argparse.Namespace) -> int:
+    """Computes the state again from the stored facts and runs the agents."""
+    pack = pack_module.load()
+    make_runtime = runtime_factory(pack)
+    rt = make_runtime()
+    with contextlib.closing(rt.conn):
+        db.emit(rt.conn, rt.ws, "facts.updated", {"component_id": "*"},
+                priority=1, coalesce_key="facts.updated:*", partition_key="coverage")
+        handled = pipeline.drain(rt)
+    print(f"Workspace '{pack.workspace}': {handled} events handled")
+    return 0
+
+
+def _snapshot_path(workspace: str) -> pathlib.Path:
+    return config.data_dir(workspace) / "demo" / "demo_start.sqlite"
+
+
+def _copy_database(source: pathlib.Path, target: pathlib.Path) -> None:
+    """Copies a database with the SQLite backup API, safe with open readers."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with contextlib.closing(sqlite3.connect(source)) as origin:
+        with contextlib.closing(sqlite3.connect(target)) as copy:
+            origin.backup(copy)
+
+
+def _demo_save(_: argparse.Namespace) -> int:
+    """Stores the current state as the demo start state."""
+    pack = pack_module.load()
+    _copy_database(db.database_path(pack.workspace), _snapshot_path(pack.workspace))
+    print(f"Saved the demo start state to {_snapshot_path(pack.workspace)}")
+    return 0
+
+
+def _demo_reset(_: argparse.Namespace) -> int:
+    """Restores the demo start state. Stop `lineguard run` before."""
+    pack = pack_module.load()
+    snapshot = _snapshot_path(pack.workspace)
+    if not snapshot.is_file():
+        print(f"No snapshot at {snapshot}. Run 'python -m lineguard demo-save' first.")
+        return 1
+    target = db.database_path(pack.workspace)
+    for suffix in ("", "-wal", "-shm"):
+        pathlib.Path(f"{target}{suffix}").unlink(missing_ok=True)
+    _copy_database(snapshot, target)
+    with contextlib.closing(db.connect(pack.workspace)) as conn:
+        version = db.migrate(conn)
+    print(f"Workspace '{pack.workspace}' is at the demo start state, schema {version}")
     return 0
 
 

@@ -4,7 +4,8 @@ Commands:
     init        create the database of the workspace and apply migrations
     run         start the API and the agents
     import      load the files of the source once and compute the state
-    eval        read the golden set of a pack and compare (needs the LLM key)
+    recompute   compute the state again from the stored facts
+    demo-save   store the current state as the demo start state
     demo-reset  restore the demo start state
 """
 
@@ -27,6 +28,8 @@ def _build_parser() -> argparse.ArgumentParser:
                       help="wave 1 only: tables, no documents")
     evaluate = commands.add_parser("eval")
     evaluate.add_argument("pack", nargs="?")
+    commands.add_parser("recompute")
+    commands.add_parser("demo-save")
     commands.add_parser("demo-reset")
     return parser
 
