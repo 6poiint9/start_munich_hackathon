@@ -86,6 +86,7 @@ def _recompute(_: argparse.Namespace) -> int:
     with contextlib.closing(rt.conn):
         db.emit(rt.conn, rt.ws, "facts.updated", {"component_id": "*"},
                 priority=1, coalesce_key="facts.updated:*", partition_key="coverage")
+        _tick(rt)
         handled = pipeline.drain(rt)
     print(f"Workspace '{pack.workspace}': {handled} events handled")
     return 0
