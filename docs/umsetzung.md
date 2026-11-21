@@ -12,7 +12,7 @@ Beginne hier, wenn du Lineguard baust. Diese Datei nennt die Reihenfolge und das
 6. Der Branch `origin/christian` (Paket `soony_tower`) wird nicht gemergt. Er ist die Vorlage für die Funktionen aus `docs/import-und-routen.md` §8. Alles andere entsteht neu nach diesen Spezifikationen.
 7. Jeder Befehl läuft auch ohne `make`: `python -m lineguard init|run|eval|demo-reset`. Das `Makefile` ruft nur diese Befehle auf. Grund: Ein Teil des Teams arbeitet unter Windows.
 
-## Stand der Umsetzung (So 22.11., früh)
+## Stand der Umsetzung (Sa 21.11., 23:30)
 
 Gebaut und mit Tests belegt (`pytest -q`: 76 Tests, CI grün): A1 bis A4, A5 (API), A6 bis A10, B2, B3. Die Seite unter `web/` (A5, Oberfläche) ist in Arbeit.
 
