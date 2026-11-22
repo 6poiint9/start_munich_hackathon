@@ -21,6 +21,14 @@ const TONE_DOTS: Record<Tone, string | null> = {
   stop: 'bg-stop-fill',
 };
 
+const TONE_PILLS: Record<Tone, string> = {
+  neutral: 'bg-ink/5 text-ink-2',
+  go: 'bg-go-wash text-go',
+  work: 'bg-work-wash text-work',
+  wait: 'bg-wait-wash text-wait',
+  stop: 'bg-stop-wash text-stop',
+};
+
 interface TagProps {
   tone?: Tone;
   children: ReactNode;
@@ -32,8 +40,8 @@ export function Tag({tone = 'neutral', children}: TagProps) {
   return (
     <span
       className={cx(
-        'inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full border px-2 text-meta whitespace-nowrap',
-        tone === 'stop' ? 'border-stop/40 text-stop' : 'border-rule-2 text-ink-2',
+        'inline-flex h-[24px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-meta font-medium whitespace-nowrap',
+        TONE_PILLS[tone],
       )}
     >
       {dot !== null && <span aria-hidden="true" className={cx('size-1.5 rounded-full', dot)} />}
@@ -70,7 +78,7 @@ export function Button({
       type={type}
       className={cx(
         'press inline-flex items-center justify-center rounded-ctl border font-medium whitespace-nowrap',
-        large ? 'h-11 px-6 text-lead' : 'h-9 px-4 text-body',
+        large ? 'h-12 rounded-[12px] px-6 text-lead' : 'h-9 px-4 text-body',
         BUTTON_CLASSES[variant],
         className,
       )}

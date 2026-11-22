@@ -99,30 +99,39 @@ function Item({entry, related, live, onSelect}: ItemProps) {
             </div>
           )}
           <div>
-            <dt className="lg-label">If you approve</dt>
-            <dd>{approveEffect(entry, live)}</dd>
+            <dd>
+              <details className="lg-mail">
+                <summary>What happens after the click</summary>
+                <dl className="lg-effects">
+                  <div>
+                    <dt className="lg-label">If you approve</dt>
+                    <dd>{approveEffect(entry, live)}</dd>
+                  </div>
+                  {!isAlert && <div>
+                    <dt className="lg-label">If you reject</dt>
+                    <dd>{rejectEffect(entry)}</dd>
+                  </div>}
+                  {related !== null && (related.breaks_at !== null || atRisk > 0) && (
+                    <div>
+                      <dt className="lg-label">If nobody decides</dt>
+                      <dd>
+                        {related.breaks_at !== null && (
+                          <>
+                            The {labels.line} stops <Clock iso={related.breaks_at} distance />.{' '}
+                          </>
+                        )}
+                        {atRisk > 0 && (
+                          <span className="lg-hot">
+                            {formatCount(atRisk)} {labels.units} at risk.
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </details>
+            </dd>
           </div>
-          {!isAlert && <div>
-            <dt className="lg-label">If you reject</dt>
-            <dd>{rejectEffect(entry)}</dd>
-          </div>}
-          {related !== null && (related.breaks_at !== null || atRisk > 0) && (
-            <div>
-              <dt className="lg-label">If nobody decides</dt>
-              <dd>
-                {related.breaks_at !== null && (
-                  <>
-                    The {labels.line} stops <Clock iso={related.breaks_at} distance />.{' '}
-                  </>
-                )}
-                {atRisk > 0 && (
-                  <span className="lg-hot">
-                    {formatCount(atRisk)} {labels.units} at risk.
-                  </span>
-                )}
-              </dd>
-            </div>
-          )}
           {entry.email !== null && (
             <div>
               <dt className="lg-label">Mail that goes with the approval</dt>

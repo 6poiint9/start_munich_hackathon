@@ -124,13 +124,51 @@ export function FileDialog({file, locator, onClose}: FileDialogProps) {
             ) : text === null ? (
               <p className="text-ink-3">Loading the file …</p>
             ) : (
-              <pre className="num overflow-auto rounded-ctl border border-rule-2 bg-white p-3 text-meta whitespace-pre">
-                {text}
-              </pre>
+              <TextWithRow text={text} locator={locator} />
             ))}
         </div>
       </div>
     </dialog>
+  );
+}
+
+/** `row 393` in a locator names the line of a table file. */
+function rowOf(locator: string | null): number | null {
+  const match = /\brow (\d+)\b/i.exec(locator ?? '');
+  return match === null ? null : Number(match[1]);
+}
+
+/** The file text. The line that the locator names is marked and in view. */
+function TextWithRow({text, locator}: {text: string; locator: string | null}) {
+  const row = rowOf(locator);
+  const marked = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    marked.current?.scrollIntoView({block: 'center'});
+  }, [row]);
+  if (row === null) {
+    return (
+      <pre className="num overflow-auto rounded-ctl border border-rule-2 bg-white p-3 text-meta whitespace-pre">
+        {text}
+      </pre>
+    );
+  }
+  const lines = text.split('\n');
+  return (
+    <pre className="num overflow-auto rounded-ctl border border-rule-2 bg-white p-3 text-meta whitespace-pre">
+      {lines.map((line, index) =>
+        index + 1 === row ? (
+          <span key={index} ref={marked} className="file-row-mark">
+            {line}
+            {'\n'}
+          </span>
+        ) : (
+          <span key={index} className={index === 0 ? 'file-row-head' : undefined}>
+            {line}
+            {'\n'}
+          </span>
+        ),
+      )}
+    </pre>
   );
 }
 
