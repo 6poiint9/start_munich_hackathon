@@ -21,6 +21,9 @@ import type {
   Finding,
   FirstStop,
   LineguardState,
+  Approval,
+  ApprovalDone,
+  ApprovalMail,
   LogEvent,
   Option,
   Person,
@@ -235,7 +238,81 @@ export function normalizeState(value: unknown): LineguardState {
     problems: list(raw.problems).map(problem),
     people: list(raw.people).flatMap(person),
     mail_mode: textOrNull(raw.mail_mode) ?? 'DRY_RUN',
+    approvals: list(raw.approvals).flatMap(approval),
+    approvals_done: list(raw.approvals_done).flatMap(approvalDone),
   };
+}
+
+function approvalMail(value: unknown): ApprovalMail | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const id = numberOrNull(value.id);
+  if (id === null) {
+    return null;
+  }
+  return {
+    id,
+    to_addr: textOrNull(value.to_addr),
+    subject: textOrNull(value.subject),
+    body: textOrNull(value.body),
+    language: textOrNull(value.language),
+    commits_money: flag(value.commits_money),
+  };
+}
+
+function approval(value: unknown): Approval[] {
+  const raw = record(value);
+  const id = textOrNull(raw.id);
+  if (id === null) {
+    return [];
+  }
+  return [
+    {
+      id,
+      type: textOrNull(raw.type) ?? 'decision',
+      object_id: numberOrNull(raw.object_id),
+      case_id: numberOrNull(raw.case_id),
+      kind: textOrNull(raw.kind),
+      title: textOrNull(raw.title) ?? id,
+      summary: textOrNull(raw.summary),
+      needs_roles: textList(raw.needs_roles),
+      approver_name: textOrNull(raw.approver_name),
+      deadline: textOrNull(raw.deadline),
+      cost_eur: numberOrNull(raw.cost_eur),
+      cost_unknown: flag(raw.cost_unknown),
+      commits_money: flag(raw.commits_money),
+      supplier_id: textOrNull(raw.supplier_id),
+      arrives_at: textOrNull(raw.arrives_at),
+      condition: textOrNull(raw.condition),
+      conflict: textOrNull(raw.conflict),
+      note: textOrNull(raw.note),
+      after_deadline: flag(raw.after_deadline),
+      email: approvalMail(raw.email),
+      created_at: textOrNull(raw.created_at),
+    },
+  ];
+}
+
+function approvalDone(value: unknown): ApprovalDone[] {
+  const raw = record(value);
+  const id = textOrNull(raw.id);
+  if (id === null) {
+    return [];
+  }
+  return [
+    {
+      id,
+      type: textOrNull(raw.type) ?? 'decision',
+      case_id: numberOrNull(raw.case_id),
+      title: textOrNull(raw.title) ?? id,
+      status: textOrNull(raw.status),
+      decided_by: textOrNull(raw.decided_by),
+      decided_at: textOrNull(raw.decided_at),
+      mail_status: textOrNull(raw.mail_status),
+      mail_to: textOrNull(raw.mail_to),
+    },
+  ];
 }
 
 function block(value: unknown): Block {
@@ -288,6 +365,16 @@ function evidenceFile(value: unknown): EvidenceFile | null {
   };
 }
 
+/** A known fact type keeps its German name when the backend sends only the code. */
+function evidenceLabel(raw: Json): string {
+  const type = textOrNull(raw.fact_type);
+  const label = textOrNull(raw.label);
+  if (type === 'supplier_condition' && (label === null || label === type)) {
+    return 'Bedingung des Lieferanten';
+  }
+  return label ?? type ?? 'Beleg';
+}
+
 /** `data.printed_value` and `data.corrected` mark a handwritten correction. */
 function noteMarks(value: unknown): {printed_value: number | null; corrected: boolean} {
   const data = record(value);
@@ -307,7 +394,7 @@ function evidence(value: unknown): Evidence[] {
     {
       fact_id: factId,
       fact_type: textOrNull(raw.fact_type),
-      label: textOrNull(raw.label) ?? textOrNull(raw.fact_type) ?? 'Beleg',
+      label: evidenceLabel(raw),
       qty: numberOrNull(raw.qty),
       value_num: numberOrNull(raw.value_num),
       value_text: textOrNull(raw.value_text),

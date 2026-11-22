@@ -159,6 +159,8 @@ const DECISION_STATUSES = new Map([
   ['approved', 'freigegeben'],
   ['rejected', 'abgelehnt'],
   ['expired', 'abgelaufen'],
+  ['applied', 'verbucht'],
+  ['handed_over', 'übergeben'],
 ]);
 
 const DECISION_STATUS_TONES = new Map<string, Tone>([
@@ -186,6 +188,7 @@ const OPTION_KINDS = new Map([
   ['alt_source', 'Anderer Lieferant'],
   ['add_capacity', 'Mehr Kapazität'],
   ['deliver_after_deadline', 'Nach der Frist liefern'],
+  ['erp_correction', 'ERP-Korrektur'],
 ]);
 
 export function optionKindWord(kind: string | null): string {

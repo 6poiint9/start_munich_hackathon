@@ -31,6 +31,7 @@ function Header({view}: {view: CaseView}) {
       </div>
       <h2 className="lg-title">{entry.title}</h2>
       <p className="lg-meta">
+        {entry.rank !== null && <span>Rang {entry.rank}</span>}
         {ids.length > 0 && <span className="lg-id">{ids.join(' · ')}</span>}
         {entry.breaks_at !== null && (
           <span>
@@ -90,12 +91,12 @@ interface CaseDetailProps {
 export function CaseDetail({view, selectedId, live}: CaseDetailProps) {
   if (selectedId === null) {
     return (
-      <p className="lg-panel lg-empty">Kein Fall offen. Heute stoppt nichts die Linie.</p>
+      <p className="lg-case lg-empty">Kein Fall offen. Heute stoppt nichts die Linie.</p>
     );
   }
   if (view === null || view.case.id !== selectedId) {
     return (
-      <p role="status" className="lg-panel lg-empty">
+      <p role="status" className="lg-case lg-empty">
         Lade Fall …
       </p>
     );
@@ -104,7 +105,7 @@ export function CaseDetail({view, selectedId, live}: CaseDetailProps) {
   const closedDecisions = view.decisions.filter((decision) => decision.status !== 'open');
 
   return (
-    <article aria-label={`Fall: ${view.case.title}`} className="lg-panel">
+    <article aria-label={`Fall: ${view.case.title}`} className="lg-case">
       <Header view={view} />
       <DiscrepancyHero view={view} />
       {openDecisions.map((decision) => (

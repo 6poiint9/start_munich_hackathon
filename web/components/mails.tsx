@@ -106,7 +106,7 @@ function ThreadMail({email}: {email: Email}) {
   const incoming = email.direction === 'in';
   const moment = email.sent_at ?? email.created_at;
   return (
-    <li className={incoming ? 'border-l-2 border-go-fill py-2 pl-3' : 'border-l-2 border-rule-2 py-2 pl-3'}>
+    <li className={incoming ? 'border-l border-rule-ink py-2 pl-3' : 'border-l border-rule py-2 pl-3'}>
       <div className="flex flex-wrap items-center gap-2 text-meta text-ink-2">
         <span className="font-medium text-ink">
           {incoming ? `Eingang von ${email.from_addr ?? 'unbekannt'}` : `Ausgang an ${email.to_addr ?? 'unbekannt'}`}

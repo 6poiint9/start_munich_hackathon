@@ -72,7 +72,6 @@ function DocumentPane({
           <strong className="lg-id">{note?.ref ?? model.finding.gr_number ?? 'ohne Nummer'}</strong>
         </button>
       )}
-      {model.handwritten && <p className="lg-chip">Handschriftliche Korrektur</p>}
       <div className="lg-doc-meta">
         {note?.ref !== null && note?.ref !== undefined && (
           <span>

@@ -1,17 +1,17 @@
 'use client';
 
-import {useState} from 'react';
 import type {KeyboardEvent} from 'react';
 
 import {formatCount, plural} from '../lib/format';
 import type {CaseSummary, LineguardState, LogEvent} from '../lib/types';
-import {caseKindWord, caseStateWord} from '../lib/words';
+import {caseStateWord} from '../lib/words';
 
+import {ApprovalQueue} from './approvals';
 import {usePage} from './page-context';
 import {Strips} from './strips';
 import {Clock} from './ui';
 
-type BoardTab = 'now' | 'later' | 'log';
+export type BoardTab = 'now' | 'later' | 'approvals' | 'log';
 
 type Signal = 'ok' | 'warn' | 'risk';
 
@@ -80,9 +80,36 @@ function byImpact(left: CaseSummary, right: CaseSummary): number {
   return (left.rank ?? 9999) - (right.rank ?? 9999);
 }
 
+function Secondary({entry}: {entry: CaseSummary}) {
+  const waiting = pendingParts(entry).length > 0;
+  if (!waiting && entry.breaks_at === null && entry.act_by === null) {
+    return caseStateWord(entry.state);
+  }
+  return (
+    <>
+      {waiting && 'Wartet auf Freigabe'}
+      {entry.breaks_at !== null && (
+        <>
+          {waiting && ' · '}
+          <span className="lg-nowrap">
+            steht ab <Clock iso={entry.breaks_at} />
+          </span>
+        </>
+      )}
+      {entry.breaks_at === null && entry.act_by !== null && (
+        <>
+          {waiting && ' · '}
+          <span className="lg-nowrap">
+            handeln bis <Clock iso={entry.act_by} />
+          </span>
+        </>
+      )}
+    </>
+  );
+}
+
 function Row({entry, selected, onSelect}: RowProps) {
   const {labels} = usePage();
-  const pending = pendingParts(entry);
   const signal = rowSignal(entry);
   const atRisk = entry.units_at_risk !== null && entry.units_at_risk > 0;
   return (
@@ -93,34 +120,18 @@ function Row({entry, selected, onSelect}: RowProps) {
         onClick={() => onSelect(entry.id)}
         className="lg-row"
       >
-        <span className="lg-rank">{entry.rank ?? '–'}</span>
+        <span className="lg-signal" data-signal={signal} aria-hidden="true" />
         <span className="lg-row-main">
-          <span className="lg-chips">
-            <span className={`lg-chip lg-chip-${signal}`}>{SIGNAL_WORD[signal]}</span>
-            <span className="lg-chip lg-chip-neutral">{caseKindWord(entry.kind)}</span>
-          </span>
+          <span className="sr-only">{SIGNAL_WORD[signal]}. </span>
           <span className="lg-row-title">{entry.title}</span>
           <span className="lg-row-meta">
-            <span>{caseStateWord(entry.state)}</span>
-            {entry.component_id !== null && <span className="lg-id">{entry.component_id}</span>}
-            {entry.breaks_at !== null ? (
-              <span>
-                {labels.line} steht ab <Clock iso={entry.breaks_at} />
-              </span>
-            ) : entry.act_by !== null ? (
-              <span>
-                handeln bis <Clock iso={entry.act_by} />
-              </span>
-            ) : null}
-            {pending.length > 0 && (
-              <span className="lg-hot">Wartet auf Freigabe: {pending.join(' · ')}</span>
-            )}
+            <Secondary entry={entry} />
           </span>
         </span>
         {atRisk ? (
-          <span className="lg-row-risk">
+          <span className="lg-row-figure">
             {formatCount(entry.units_at_risk)}
-            <span className="lg-row-risk-label">{labels.units}</span>
+            <span className="sr-only"> {labels.units}</span>
           </span>
         ) : (
           <span />
@@ -165,20 +176,33 @@ interface CaseListProps {
   events: LogEvent[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  tab: BoardTab;
+  onTab: (tab: BoardTab) => void;
+  approvalId: string | null;
+  onApproval: (id: string) => void;
 }
 
-export function CaseList({state, events, selectedId, onSelect}: CaseListProps) {
-  const [tab, setTab] = useState<BoardTab>('now');
-  const {counters, booking_review: review, problems} = state;
+export function CaseList({
+  state,
+  events,
+  selectedId,
+  onSelect,
+  tab,
+  onTab,
+  approvalId,
+  onApproval,
+}: CaseListProps) {
+  const {counters, booking_review: review, problems, approvals, approvals_done: done} = state;
   const firstProblem = problems.length > 0 ? problems[0] : undefined;
   const tabs: {id: BoardTab; label: string; count: number}[] = [
     {id: 'now', label: 'Jetzt', count: Math.max(counters.now_total, state.cases_now.length)},
     {id: 'later', label: 'Danach', count: Math.max(counters.later_total, state.cases_later.length)},
+    {id: 'approvals', label: 'Freigaben', count: approvals.length},
     {id: 'log', label: 'Protokoll', count: events.length},
   ];
 
   const onTabsKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    const order: BoardTab[] = ['now', 'later', 'log'];
+    const order: BoardTab[] = ['now', 'later', 'approvals', 'log'];
     const index = order.indexOf(tab);
     let next = index;
     if (event.key === 'ArrowRight') {
@@ -193,15 +217,15 @@ export function CaseList({state, events, selectedId, onSelect}: CaseListProps) {
     if (id === undefined) {
       return;
     }
-    setTab(id);
+    onTab(id);
     document.getElementById(`tab-${id}`)?.focus();
   };
 
   return (
-    <nav aria-label="Fälle" className="lg-panel">
+    <nav aria-label="Fälle" className="lg-list">
       <div className="lg-panel-head">
         <div className="lg-panel-title">
-          <h2>Fälle</h2>
+          <h2>{tab === 'approvals' ? 'Freigaben' : 'Fälle'}</h2>
           <p className="lg-open-line">
             Offen:{' '}
             <span className={counters.open_decisions > 0 ? 'lg-hot' : undefined}>
@@ -224,19 +248,19 @@ export function CaseList({state, events, selectedId, onSelect}: CaseListProps) {
               aria-controls={`panel-${item.id}`}
               tabIndex={tab === item.id ? 0 : -1}
               className="lg-tab"
-              onClick={() => setTab(item.id)}
+              onClick={() => onTab(item.id)}
             >
               {item.label}
               <span className="lg-tab-count">{formatCount(item.count)}</span>
               {item.id === 'log' && problems.length > 0 && (
-                <span className="lg-dot" aria-hidden="true" />
+                <span className="lg-alert-dot" aria-hidden="true" />
               )}
             </button>
           ))}
         </div>
       </div>
       {firstProblem !== undefined && tab !== 'log' && (
-        <button type="button" className="lg-problem" onClick={() => setTab('log')}>
+        <button type="button" className="lg-problem" onClick={() => onTab('log')}>
           <span className="lg-hot">{plural(problems.length, 'Problem', 'Probleme')}: </span>
           {firstProblem.error ?? 'Fehler ohne Text'}
         </button>
@@ -263,6 +287,14 @@ export function CaseList({state, events, selectedId, onSelect}: CaseListProps) {
             empty="Nichts, was später droht."
             selectedId={selectedId}
             onSelect={onSelect}
+          />
+        )}
+        {tab === 'approvals' && (
+          <ApprovalQueue
+            items={approvals}
+            done={done}
+            selectedId={approvalId}
+            onSelect={onApproval}
           />
         )}
         {tab === 'log' && (

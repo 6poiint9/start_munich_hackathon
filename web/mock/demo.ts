@@ -8,6 +8,8 @@
 
 import {normalizeCase, normalizeState} from '../lib/normalize';
 import type {
+  Approval,
+  ApprovalDone,
   CaseDetail,
   CaseSummary,
   CaseView,
@@ -284,6 +286,16 @@ function frameGap(): CaseView {
     },
     evidence: [
       noteQty,
+      fact({
+        fact_id: 15,
+        fact_type: 'supplier_condition',
+        label: 'Bedingung des Lieferanten',
+        value_text: 'Express nur, wenn die Bestellung heute bis 16:00 Uhr liegt.',
+        ref: 'ANG-2207',
+        source_rank: 2,
+        confidence: 0.9,
+        extracted_by: 'llm',
+      }),
       fact({
         fact_id: 14,
         fact_type: 'offer',
@@ -623,6 +635,91 @@ function logEvent(id: number, type: string, createdAt: string): LogEvent {
 }
 
 /** Builds a fresh copy of the demo data. */
+function demoApprovals(): Approval[] {
+  return [
+    {
+      id: 'decision:1',
+      type: 'decision',
+      object_id: 1,
+      case_id: 1,
+      kind: 'accept_offer',
+      title: '60 Rahmen bei Feinrohr per Express bestellen',
+      summary: '60 Rahmen, Ankunft Dienstag 14:00, einen Tag vor dem Stopp der Linie.',
+      needs_roles: ['buyer'],
+      approver_name: 'Anna Beispiel',
+      deadline: '2027-03-01T11:00:00Z',
+      cost_eur: 4800,
+      cost_unknown: false,
+      commits_money: true,
+      supplier_id: 'LIEF-FEINROHR',
+      arrives_at: '2027-03-02T13:00:00Z',
+      condition: 'Express nur, wenn die Bestellung heute bis 16:00 Uhr liegt.',
+      conflict: null,
+      note: null,
+      after_deadline: false,
+      email: {
+        id: 1,
+        to_addr: 'vertrieb@feinrohr.example',
+        subject: 'Bestellung 60 Rahmen RAHMEN-01 per Express (Angebot ANG-2207)',
+        body: 'Guten Tag Frau Rohr,\n\nwir nehmen Ihr Angebot ANG-2207 an und bestellen 60 Rahmen RAHMEN-01 per Express.\nBitte bestätigen Sie die Ankunft am Dienstag, 02.03., bis 14:00 Uhr an unserem Wareneingang.\n\nFreundliche Grüße\nEinkauf Radwerk Demo',
+        language: 'de',
+        commits_money: true,
+      },
+      created_at: NOW,
+    },
+    {
+      id: 'correction:1',
+      type: 'correction',
+      object_id: 1,
+      case_id: 2,
+      kind: 'erp_correction',
+      title: 'Wareneingang WE-1001 korrigieren: 1.000 auf 100',
+      summary: 'Drei Quellen belegen 100 Stück. Das ERP hat 1.000 gebucht.',
+      needs_roles: ['erp_owner'],
+      approver_name: 'Clara Test',
+      deadline: '2027-03-01T15:00:00Z',
+      cost_eur: null,
+      cost_unknown: false,
+      commits_money: false,
+      supplier_id: 'LIEF-FEINROHR',
+      arrives_at: null,
+      condition: null,
+      conflict: 'ERP und Lieferschein weichen um 900 Stück ab.',
+      note: 'Die Linie verbraucht den Bestand, bevor die Korrektur im ERP steht.',
+      after_deadline: true,
+      email: null,
+      created_at: '2027-03-01T06:20:00Z',
+    },
+  ];
+}
+
+function demoApprovalsDone(): ApprovalDone[] {
+  return [
+    {
+      id: 'decision:8',
+      type: 'decision',
+      case_id: 3,
+      title: 'Teillieferung 30 Ketten per Kurier',
+      status: 'approved',
+      decided_by: 'Anna Beispiel',
+      decided_at: '2027-02-28T16:10:00Z',
+      mail_status: 'sent',
+      mail_to: 'dispo@kettenwerk.example',
+    },
+    {
+      id: 'correction:4',
+      type: 'correction',
+      case_id: 5,
+      title: 'Wareneingang WE-0990 stornieren',
+      status: 'rejected',
+      decided_by: 'Clara Test',
+      decided_at: '2027-02-28T11:20:00Z',
+      mail_status: null,
+      mail_to: null,
+    },
+  ];
+}
+
 export function createDemo(): DemoData {
   const views = [
     frameGap(),
@@ -686,6 +783,8 @@ export function createDemo(): DemoData {
         error: 'pruefbericht_sattel.pdf: Seite 2 ist nicht lesbar. Bitte von Hand prüfen.',
       },
     ],
+    approvals: demoApprovals(),
+    approvals_done: demoApprovalsDone(),
   };
   return {
     state,

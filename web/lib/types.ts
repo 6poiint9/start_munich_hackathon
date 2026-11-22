@@ -103,6 +103,57 @@ export interface Person {
   roles: string[];
 }
 
+/** The draft that goes out when the person approves. */
+export interface ApprovalMail {
+  id: number;
+  to_addr: string | null;
+  subject: string | null;
+  body: string | null;
+  language: string | null;
+  commits_money: boolean;
+}
+
+/**
+ * One item waiting for a click. `id` is `decision:<id>` or `correction:<id>`.
+ * The list on the state is already sorted, most urgent first.
+ */
+export interface Approval {
+  id: string;
+  type: string;
+  object_id: number | null;
+  case_id: number | null;
+  kind: string | null;
+  title: string;
+  summary: string | null;
+  needs_roles: string[];
+  approver_name: string | null;
+  deadline: string | null;
+  cost_eur: number | null;
+  cost_unknown: boolean;
+  commits_money: boolean;
+  supplier_id: string | null;
+  arrives_at: string | null;
+  condition: string | null;
+  conflict: string | null;
+  note: string | null;
+  after_deadline: boolean;
+  email: ApprovalMail | null;
+  created_at: string | null;
+}
+
+/** One of the last approvals or rejections. Newest first. */
+export interface ApprovalDone {
+  id: string;
+  type: string;
+  case_id: number | null;
+  title: string;
+  status: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  mail_status: string | null;
+  mail_to: string | null;
+}
+
 export interface LineguardState {
   customer: string | null;
   labels: Labels;
@@ -119,6 +170,9 @@ export interface LineguardState {
   problems: Problem[];
   people: Person[];
   mail_mode: string;
+  /** Empty when the backend does not send the inbox yet. */
+  approvals: Approval[];
+  approvals_done: ApprovalDone[];
 }
 
 export interface Block {

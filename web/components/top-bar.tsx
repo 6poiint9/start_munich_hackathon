@@ -7,7 +7,8 @@ import {mailModeWord, roleWord} from '../lib/words';
 import type {LineguardState} from '../lib/types';
 
 import {useAction, usePage} from './page-context';
-import {Button, ErrorNote, Tag} from './ui';
+import {ThemeToggle} from './theme-toggle';
+import {Button, ErrorNote} from './ui';
 
 interface TopBarProps {
   state: LineguardState;
@@ -32,7 +33,7 @@ export function TopBar({state, mock, offline}: TopBarProps) {
             Lineguard
             {state.customer !== null && <span className="lg-customer">{state.customer}</span>}
           </p>
-          <p className="lg-meta">
+          <p className="lg-stand">
             Stand <span className="lg-id">{formatStamp(state.at, timezone)}</span>
             {' · '}
             <span className="lg-id">{formatCount(read)}</span> von{' '}
@@ -41,10 +42,9 @@ export function TopBar({state, mock, offline}: TopBarProps) {
           </p>
         </div>
         <div className="lg-top-actions">
-          <Tag tone={state.mail_mode === 'LIVE' ? 'work' : 'neutral'}>
-            {mailModeWord(state.mail_mode)}
-          </Tag>
-          {mock && <Tag tone="wait">Demo-Daten</Tag>}
+          <span className="lg-quiet">{mailModeWord(state.mail_mode)}</span>
+          {mock && <span className="lg-quiet">Demo-Daten</span>}
+          <ThemeToggle />
           <Button variant="primary" disabled={check.busy} onClick={() => void check.run(api.sync)}>
             {check.busy ? 'Prüfe …' : 'Jetzt prüfen'}
           </Button>

@@ -121,7 +121,6 @@ function ProductBlock({product, state}: {product: Product; state: LineguardState
   const atRisk = unitsAtRisk(product, cases);
   const signal = signalOf(product, atRisk, apart);
   const stop = stopLead(lineStopIso(product, state), now, product.hours_left);
-  const total = UNIT_STATES.reduce((sum, entry) => sum + product.units[entry.key], 0);
   const rest =
     product.hours_left !== null && stop.label !== 'Restzeit'
       ? `${formatCount(product.hours_left)} h`
@@ -136,48 +135,46 @@ function ProductBlock({product, state}: {product: Product; state: LineguardState
             {labels.product} <span className="lg-id">{product.product_id}</span>
           </p>
         </div>
-        <span className={`lg-chip lg-chip-${signal}`}>{SIGNAL_WORD[signal]}</span>
+        <p className={`lg-status-word is-${signal}`}>{SIGNAL_WORD[signal]}</p>
       </header>
 
       <div className="lg-figures">
         <div>
-          <p className="lg-hero">{formatPercent(secured)}</p>
-          <p className="lg-kicker">gesichert</p>
+          <p className="lg-figure">{formatPercent(secured)}</p>
+          <p className="lg-figure-label">gesichert</p>
         </div>
         <div>
           {atRisk > 0 ? (
             <>
-              <p className="lg-hero lg-hero-risk">{formatCount(atRisk)}</p>
-              <p className="lg-kicker">{labels.units} in Gefahr</p>
+              <p className="lg-figure">{formatCount(atRisk)}</p>
+              <p className="lg-figure-label lg-risk-text">{labels.units} in Gefahr</p>
             </>
           ) : (
             <>
-              <p className={stop.time ? 'lg-hero lg-hero-time' : 'lg-hero'}>{stop.value}</p>
-              <p className="lg-kicker">{stop.label}</p>
+              <p className="lg-figure">{stop.value}</p>
+              <p className="lg-figure-label">{stop.label}</p>
             </>
           )}
         </div>
         <div>
           <p className="lg-sub">{formatCount(product.still_to_pack)}</p>
-          <p className="lg-kicker">
-            offen bis {labels.deadline}
-          </p>
+          <p className="lg-figure-label">offen bis {labels.deadline}</p>
         </div>
         <div>
           {atRisk > 0 ? (
             <>
               <p className="lg-sub">{stop.value}</p>
-              <p className="lg-kicker">{stop.label}</p>
+              <p className="lg-figure-label">{stop.label}</p>
             </>
           ) : rest !== null ? (
             <>
               <p className="lg-sub">{rest}</p>
-              <p className="lg-kicker">Restzeit</p>
+              <p className="lg-figure-label">Restzeit</p>
             </>
           ) : (
             <>
               <p className="lg-sub">{product.limiting_component ?? '–'}</p>
-              <p className="lg-kicker">Engpass</p>
+              <p className="lg-figure-label">Engpass</p>
             </>
           )}
         </div>
@@ -199,7 +196,7 @@ function ProductBlock({product, state}: {product: Product; state: LineguardState
 
       {system !== null && secured !== null && (
         <div
-          className="lg-track relative h-2 overflow-hidden rounded-tag bg-well"
+          className="lg-bar relative h-0.5 overflow-hidden rounded-tag bg-well"
           role="img"
           aria-label={`System sagt ${formatPercent(system)}, gesichert ${formatPercent(secured)}`}
         >
@@ -213,17 +210,6 @@ function ProductBlock({product, state}: {product: Product; state: LineguardState
         </div>
       )}
 
-      {total > 0 && (
-        <div className="lg-track flex h-2 overflow-hidden rounded-tag" aria-hidden="true">
-          {UNIT_STATES.map((entry) => (
-            <div
-              key={entry.key}
-              className={entry.fill}
-              style={{width: share(product.units[entry.key] / total)}}
-            />
-          ))}
-        </div>
-      )}
       <ul className="lg-legend">
         {UNIT_STATES.map((entry) => (
           <li

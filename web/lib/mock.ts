@@ -8,6 +8,7 @@ import type {DemoData} from '../mock/demo';
 
 import {ApiError} from './errors';
 import type {
+  ApprovalMail,
   CaseView,
   Correction,
   Decision,
@@ -105,6 +106,41 @@ function recount(view: CaseView): void {
   };
 }
 
+/** Moves a clicked inbox item into the short history. */
+function finishApproval(
+  type: string,
+  objectId: number,
+  status: string,
+  actor: Person,
+  mail: ApprovalMail | null,
+): void {
+  const state = demo().state;
+  const index = state.approvals.findIndex(
+    (item) => item.type === type && item.object_id === objectId,
+  );
+  if (index < 0) {
+    return;
+  }
+  const item = state.approvals[index];
+  if (item === undefined) {
+    return;
+  }
+  state.approvals.splice(index, 1);
+  const sent = mail === null ? null : state.mail_mode === 'LIVE' ? 'sent' : 'dry_run';
+  state.approvals_done.unshift({
+    id: item.id,
+    type: item.type,
+    case_id: item.case_id,
+    title: item.title,
+    status,
+    decided_by: actor.name,
+    decided_at: stamp(),
+    mail_status: sent,
+    mail_to: mail?.to_addr ?? null,
+  });
+  state.approvals_done = state.approvals_done.slice(0, 5);
+}
+
 function decisionRoles(decision: Decision): string[] {
   if (decision.needs_roles.length > 0) {
     return decision.needs_roles;
@@ -139,6 +175,9 @@ export function approveDecision(
   const {view, item} = find<Decision>(id, (entry) => entry.decisions);
   const actor = person(personId, decisionRoles(item));
   requireStatus(item, 'open');
+  const draft = demo().state.approvals.find(
+    (entry) => entry.type === 'decision' && entry.object_id === id,
+  )?.email ?? null;
   const chosenId = optionId ?? item.recommended_option;
   const chosen = view.options.find((entry) => entry.id === chosenId);
   if (chosen === undefined || !chosen.feasible) {
@@ -157,7 +196,16 @@ export function approveDecision(
     product.units.open -= moved;
     product.units.planned += moved;
   }
+  if (draft !== null) {
+    const email = view.emails.find((entry) => entry.id === draft.id);
+    if (email !== undefined && email.status === 'draft') {
+      email.status = demo().state.mail_mode === 'LIVE' ? 'sent' : 'dry_run';
+      email.approved_by = actor.person_id;
+      email.sent_at = stamp();
+    }
+  }
   recount(view);
+  finishApproval('decision', id, 'approved', actor, draft);
   log('decision.approved', {decision_id: id, option_id: chosen.id});
 }
 
@@ -178,6 +226,7 @@ export function rejectDecision(
   item.decided_at = stamp();
   view.case.state = 'open';
   recount(view);
+  finishApproval('decision', id, 'rejected', actor, null);
   log('decision.rejected', {decision_id: id});
 }
 
@@ -220,6 +269,7 @@ export function approveCorrection(id: number, personId: string | null): void {
   item.approved_at = stamp();
   view.case.state = 'approved';
   recount(view);
+  finishApproval('correction', id, item.status, actor, null);
   log('correction.approved', {correction_id: id});
 }
 
@@ -229,7 +279,7 @@ export function rejectCorrection(
   personId: string | null,
 ): void {
   const {view, item} = find<Correction>(id, (entry) => entry.corrections);
-  person(personId, ['erp_owner']);
+  const actor = person(personId, ['erp_owner']);
   requireStatus(item, 'proposed');
   if (reason.trim() === '') {
     throw new ApiError(422, 'Der Grund ist Pflicht');
@@ -237,6 +287,7 @@ export function rejectCorrection(
   item.status = 'rejected';
   item.reject_reason = reason.trim();
   recount(view);
+  finishApproval('correction', id, 'rejected', actor, null);
   log('correction.rejected', {correction_id: id});
 }
 
