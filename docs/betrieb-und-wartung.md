@@ -6,14 +6,14 @@ Grund: Lio verlangt eine wartbare Lösung für lange Nutzung (`architecture.md` 
 
 ## W1. Identität: Wer gibt frei? (40 min)
 
-Jede bekannte Person kann eine Freigabe erteilen. Das Backend prüft die gewählte Person. Für andere Aktionen gelten weiter Rollenregeln.
+Das Backend prüft die gewählte Person und die erforderlichen Rollen. Eine passende Rolle genügt. Gemeinsame Freigaben, die Soony teilweise verlangt, sind nicht umgesetzt.
 
 1. Jeder schreibende Endpunkt (`/decisions/{id}/approve`, `/decisions/{id}/reject`, `/emails/{id}/approve`, `/corrections/{id}/approve`, `/corrections/{id}/reject`, Korrektur eines Fakts) verlangt den Header `X-Lineguard-User` mit einer `person_id`.
-2. `require_role(person_id, needs_roles, at)` in `lineguard/policy/engine.py` prüft die Rolle für Ablehnen, Verwerfen und Zählen. Bei einer fehlenden Rolle antwortet der Endpunkt mit HTTP 403.
+2. `require_role(person_id, needs_roles, at)` in `lineguard/policy/engine.py` prüft die Rolle für Freigeben, Ablehnen, Verwerfen und Zählen. Bei einer fehlenden Rolle antwortet der Endpunkt mit HTTP 403. Bei einer unbesetzten Rolle kann die konfigurierte Ersatzrolle gelten.
 3. Ausnahme: Eine ERP-Korrektur mit `tier = auto` hat keine Person, sondern `approved_by = policy:erp_write_auto` (`docs/buchungspruefung.md` §6a). Nur eine Person mit der Rolle `erp_owner` darf die Regel `booking_check.tiers` ändern. Die Änderung ist ein Commit im Paket und steht im Protokoll.
 4. Personen und Rollen sind Fakten vom Typ `person_role` aus dem neuesten Organigramm. Rollen ohne Dokument (zum Beispiel `erp_owner`) stehen in `pack.roles`.
 5. `approved_by`, `decided_by` und `extracted_by = human` speichern die `person_id`.
-6. Die Oberfläche hat oben rechts „Angemeldet als“. Die Auswahl listet die Personen mit Rolle. Jede gewählte Person kann freigeben.
+6. Die Oberfläche hat oben rechts „Angemeldet als“. Die Auswahl listet die Personen mit Rolle. Die Oberfläche prüft die direkten Rollen der gewählten Person.
 
 Der Umschalter ist die Lösung für die Abgabe und kein Login. Für einen öffentlichen Betrieb braucht die Anwendung einen Zugriffsschutz.
 
@@ -110,7 +110,7 @@ Bis zur Abgabe entsteht von `pack check` nur die Meldung „Dateien ohne Route�
 
 ## 9. Fertig, wenn
 
-1. `tests/test_auth.py`: Eine Freigabe ohne Header liefert HTTP 401. Eine unbekannte Person erhält HTTP 403. Jede bekannte Person kann eine Korrektur fürs ERP freigeben.
+1. `tests/test_auth.py`: Eine Freigabe ohne Header liefert HTTP 401. Eine unbekannte Person und eine Person ohne passende Rolle erhalten HTTP 403. Eine Person mit `erp_owner` kann eine Korrektur fürs ERP freigeben.
 2. `tests/test_migrations.py`: Eine leere Datenbank hat nach `make init` die höchste Nummer in `schema_version`. Ein zweiter Lauf ändert nichts.
 3. Die CI ist auf dem Hauptzweig grün, und mindestens die Tests mit `demo_bikes` laufen dort.
 4. `make eval PACK=demo_bikes` endet mit Code 0. `make eval PACK=soony_gh6` endet auf dem Laptop mit Code 0 für die fünf Dokumente.

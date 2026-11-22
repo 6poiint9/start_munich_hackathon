@@ -1,7 +1,7 @@
 """What happens when a person clicks: approve, reject, request a count.
 
 Every function gets the person who clicked. The API checks the person
-and checks roles for actions other than approval (docs/betrieb-und-wartung.md W1).
+and required roles before calling these functions (docs/betrieb-und-wartung.md W1).
 """
 
 from typing import Any
@@ -125,7 +125,7 @@ def _decision(rt: runtime.Runtime, decision_id: int) -> dict[str, Any]:
 
 
 def decision_roles(rt: runtime.Runtime, decision_id: int) -> list[str]:
-    """The roles of which one must reject this decision."""
+    """The roles of which one must decide."""
     return _decision(rt, decision_id)["needs_roles"]
 
 
@@ -250,7 +250,7 @@ def _email(rt: runtime.Runtime, email_id: int) -> dict[str, Any]:
 
 
 def email_roles(rt: runtime.Runtime, email_id: int) -> list[str] | None:
-    """Roles needed to discard a draft. None means any known person."""
+    """Roles needed to approve or discard a draft. None means any known person."""
     row = _email(rt, email_id)
     if row["decision_id"]:
         return decision_roles(rt, row["decision_id"])

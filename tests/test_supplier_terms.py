@@ -94,7 +94,7 @@ def test_draft_binds_the_company_and_waits_for_a_person(tmp_path, monkeypatch):
     assert _rows(rt, "emails", "status IN ('sent', 'dry_run')") == []
 
 
-def test_any_known_person_sends_the_confirmation(tmp_path, monkeypatch):
+def test_only_a_person_with_the_role_sends_the_confirmation(tmp_path, monkeypatch):
     rt, client = _setup(tmp_path, monkeypatch)
     decision_id = _rows(rt, "decisions", "status = 'open'")[0]["id"]
 
@@ -102,22 +102,25 @@ def test_any_known_person_sends_the_confirmation(tmp_path, monkeypatch):
     unknown = client.post(f"/decisions/{decision_id}/approve",
                           headers={"X-Lineguard-User": "nobody"})
     assert unknown.status_code == 403
+    wrong = client.post(f"/decisions/{decision_id}/approve",
+                        headers={"X-Lineguard-User": "P1"})
+    assert wrong.status_code == 403
     assert _rows(rt, "emails", "status IN ('sent', 'dry_run')") == []
 
     right = client.post(f"/decisions/{decision_id}/approve",
-                        headers={"X-Lineguard-User": "P1"})
+                        headers={"X-Lineguard-User": "P2"})
     again = client.post(f"/decisions/{decision_id}/approve",
-                        headers={"X-Lineguard-User": "P1"})
+                        headers={"X-Lineguard-User": "P2"})
 
     assert (right.status_code, right.json()["status"]) == (200, "approved")
     assert again.json()["status"] == "approved"
     sent = _rows(rt, "emails", "direction = 'out' AND status != 'discarded'")
-    assert [(m["status"], m["approved_by"]) for m in sent] == [("dry_run", "P1")]
+    assert [(m["status"], m["approved_by"]) for m in sent] == [("dry_run", "P2")]
     state = client.get("/state").json()
     assert [a for a in state["approvals"] if a["kind"] == "confirm_terms"] == []
     done = state["approvals_done"][0]
     assert (done["status"], done["decided_by"], done["mail_status"]) == (
-        "approved", "Anna Beispiel", "dry_run")
+        "approved", "Bernd Muster", "dry_run")
     assert _rows(rt, "cases", "kind = 'gap'")[0]["state"] == "in_execution"
 
 

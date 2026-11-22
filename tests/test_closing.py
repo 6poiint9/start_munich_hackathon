@@ -92,11 +92,13 @@ def test_unclosable_alert_is_immediate_idempotent_and_safe_to_acknowledge(tmp_pa
     db.emit(rt.conn, rt.ws, "tick")
     pipeline.drain(rt)
     assert len(_rows(rt, "decisions", "dedupe_key LIKE 'unclosable:%'")) == 1
+    assert client.post(f"/decisions/{alert['id']}/approve",
+                       headers={"X-Lineguard-User": "P1"}).status_code == 403
     response = client.post(f"/decisions/{alert['id']}/approve",
-                           headers={"X-Lineguard-User": "P1"})
+                           headers={"X-Lineguard-User": "P2"})
     assert response.status_code == 200
     assert response.json()["status"] == "approved"
-    assert response.json()["decided_by"] == "P1"
+    assert response.json()["decided_by"] == "P2"
     assert _rows(rt, "cases", "kind = 'gap'")[0]["state"] == "unclosable"
     assert _rows(rt, "emails") == mail_before
 
@@ -123,26 +125,29 @@ def test_unclosable_alert_expires_when_a_plan_becomes_possible(tmp_path, monkeyp
                        headers={"X-Lineguard-User": "P2"}).json()["status"] == "expired"
 
 
-def test_known_person_approves_and_sends_exactly_one_mail(tmp_path, monkeypatch):
+def test_approval_needs_the_role_and_sends_exactly_one_mail(tmp_path, monkeypatch):
     rt, client = _setup(tmp_path, monkeypatch)
     decision_id = _rows(rt, "decisions")[0]["id"]
 
     assert client.post(f"/decisions/{decision_id}/approve").status_code == 401
     unknown = client.post(f"/decisions/{decision_id}/approve",
                           headers={"X-Lineguard-User": "nobody"})
-    first = client.post(f"/decisions/{decision_id}/approve",
+    wrong = client.post(f"/decisions/{decision_id}/approve",
                         headers={"X-Lineguard-User": "P3"})
+    first = client.post(f"/decisions/{decision_id}/approve",
+                        headers={"X-Lineguard-User": "P1"})
     second = client.post(f"/decisions/{decision_id}/approve",
-                         headers={"X-Lineguard-User": "P3"})
+                         headers={"X-Lineguard-User": "P1"})
 
     assert unknown.status_code == 403
+    assert wrong.status_code == 403
     assert (first.status_code, first.json()["status"]) == (200, "approved")
     assert second.json()["status"] == "approved"
     mails = _rows(rt, "emails", "direction = 'out' AND commits_money = 1")
     assert len(mails) == 1
     assert mails[0]["status"] == "dry_run"
     assert mails[0]["to_addr"] == "jan@rahmenbau.example"
-    assert mails[0]["approved_by"] == "P3"
+    assert mails[0]["approved_by"] == "P1"
     assert mails[0]["subject"].startswith("[RAD]")
     assert _rows(rt, "cases", "kind = 'gap'")[0]["state"] == "in_execution"
 
@@ -277,7 +282,7 @@ def test_open_decision_escalates_before_it_is_due(tmp_path, monkeypatch):
     assert after["escalation_level"] == 1
 
 
-def test_any_known_person_can_approve_email_after_escalation(tmp_path, monkeypatch):
+def test_email_approval_uses_escalated_decision_role(tmp_path, monkeypatch):
     rt, client = _setup(tmp_path, monkeypatch)
     decision = _rows(rt, "decisions")[0]
     email_id = _rows(rt, "emails", "status = 'draft'")[0]["id"]
@@ -290,11 +295,14 @@ def test_any_known_person_can_approve_email_after_escalation(tmp_path, monkeypat
                        headers={"X-Lineguard-User": "nobody"}).status_code == 403
     assert client.post(f"/emails/{email_id}/discard",
                        headers={"X-Lineguard-User": "P1"}).status_code == 403
+    assert client.post(f"/emails/{email_id}/approve",
+                       headers={"X-Lineguard-User": "P1"}).status_code == 403
+    assert _rows(rt, "emails", "status = 'draft'")[0]["id"] == email_id
     accepted = client.post(f"/emails/{email_id}/approve",
-                           headers={"X-Lineguard-User": "P1"})
+                           headers={"X-Lineguard-User": "P2"})
     assert accepted.status_code == 200
     assert accepted.json()["status"] == "dry_run"
-    assert accepted.json()["approved_by"] == "P1"
+    assert accepted.json()["approved_by"] == "P2"
 
 
 @pytest.mark.parametrize("route", ["decision", "email"])

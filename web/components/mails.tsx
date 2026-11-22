@@ -36,8 +36,7 @@ function Draft({email, roles, live}: DraftProps) {
   const [body, setBody] = useState(email.body ?? '');
   const subjectId = useId();
   const bodyId = useId();
-  const allowed = person !== null;
-  const mayDiscard = holdsRole(person, roles);
+  const allowed = holdsRole(person, roles);
 
   return (
     <li className="space-y-2 py-3 first:pt-0">
@@ -87,7 +86,7 @@ function Draft({email, roles, live}: DraftProps) {
             {live ? 'Approve and send' : 'Approve'}
           </Button>
           <Button
-            disabled={action.busy || !mayDiscard}
+            disabled={action.busy}
             onClick={() => void action.run((personId) => api.discardEmail(email.id, personId))}
           >
             Discard
@@ -99,7 +98,7 @@ function Draft({email, roles, live}: DraftProps) {
           )}
         </div>
       ) : (
-        <ApproverNote roles={[]} />
+        <ApproverNote roles={roles} />
       )}
       <ErrorNote message={action.error} />
     </li>

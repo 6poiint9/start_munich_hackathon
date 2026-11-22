@@ -75,7 +75,8 @@ The API contract is in `docs/api.md` in the repository root. The page takes the 
 
 - The page loads `/state`, the selected case and the event log every 5 seconds.
 - "Acting as" stores the selected person in the browser. Each write call sends the `person_id` of this person in the header `X-Lineguard-User`.
-- Any selected person can approve. Rejection, discarding and count requests still require the matching role.
+- Approval, rejection, discard and count actions use role rules. Selecting a person is not authentication.
+- One matching role is enough; joint approvals required by parts of Soony's policy are not implemented.
 - Person selection is not authentication. Restrict write access before a public deployment.
 
 ERP corrections show the proposed data before approval. In `proposal_file` mode, approval saves local JSON and CSV files. It does not update the ERP. A later ERP export must confirm the new quantity. Browser mock mode does not save these files.

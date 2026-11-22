@@ -51,8 +51,7 @@ interface ItemProps {
 function Item({entry, related, live, onSelect}: ItemProps) {
   const {person, labels} = usePage();
   const action = useAction();
-  const allowed = person !== null;
-  const mayReject = holdsRole(person, entry.needs_roles);
+  const allowed = holdsRole(person, entry.needs_roles);
   const isDecision = entry.type === 'decision';
   const isAlert = entry.kind === 'unclosable_gap';
   const atRisk = related?.units_at_risk ?? 0;
@@ -149,7 +148,7 @@ function Item({entry, related, live, onSelect}: ItemProps) {
 
       <dl className="lg-pairs">
         <div>
-          <dt className="lg-label">Suggested owner</dt>
+          <dt className="lg-label">Who decides</dt>
           <dd>
             {entry.approver_name ?? (entry.needs_roles.map(roleWord).join(' or ') || 'Any person')}
             {entry.approver_name !== null && entry.needs_roles.length > 0 && (
@@ -192,8 +191,8 @@ function Item({entry, related, live, onSelect}: ItemProps) {
         <Button variant="primary" disabled={!allowed || action.busy} onClick={approve}>
           {action.busy ? 'Working …' : isAlert ? 'Acknowledge' : 'Approve'}
         </Button>
-        {!isAlert && <RejectForm label="Reject" busy={action.busy || !mayReject} onReject={reject} />}
-        {!allowed && <ApproverNote roles={[]} />}
+        {!isAlert && <RejectForm label="Reject" busy={action.busy || !allowed} onReject={reject} />}
+        {!allowed && <ApproverNote roles={entry.needs_roles} name={entry.approver_name} />}
         <ErrorNote message={action.error} />
         {entry.case_id !== null && (
           <button
@@ -235,7 +234,7 @@ export function Approvals({state, onSelect}: ApprovalsProps) {
   const {person, timezone, now} = usePage();
   const [open, setOpen] = useState(true);
   const waiting = state.approvals;
-  const mine = person === null ? 0 : waiting.length;
+  const mine = waiting.filter((entry) => holdsRole(person, entry.needs_roles)).length;
   const done = state.approvals_done;
   const cases = [...state.cases_now, ...state.cases_later];
 

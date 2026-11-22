@@ -141,7 +141,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
 
     @app.post("/corrections/{correction_id}/approve")
     def approve_correction(correction_id: int, request: fastapi.Request, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
-        person = current_person(rt, request, None)
+        person = current_person(rt, request, ["erp_owner"])
         return run(approvals.approve_correction, rt, correction_id, person)
 
     @app.post("/corrections/{correction_id}/reject")
@@ -156,7 +156,8 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
 
     @app.post("/decisions/{decision_id}/approve")
     def approve_decision(decision_id: int, request: fastapi.Request, body: dict[str, Any] | None = None, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
-        person = current_person(rt, request, None)
+        roles = run(approvals.decision_roles, rt, decision_id)
+        person = current_person(rt, request, roles)
         return run(approvals.approve_decision, rt, decision_id, person,
                    (body or {}).get("option_id"))
 
@@ -168,7 +169,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
 
     @app.post("/emails/{email_id}/approve")
     def approve_email(email_id: int, request: fastapi.Request, body: dict[str, Any] | None = None, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
-        person = current_person(rt, request, None)
+        person = current_person(rt, request, run(approvals.email_roles, rt, email_id))
         body = body or {}
         return run(approvals.approve_email, rt, email_id, person,
                    body.get("subject"), body.get("body"))
