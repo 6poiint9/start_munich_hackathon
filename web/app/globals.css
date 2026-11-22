@@ -1,80 +1,93 @@
 @import 'tailwindcss';
 
 /*
- * Lineguard tokens. The world is a goods-receipt ledger: copy paper, blue-black
- * ink, one stamp blue for the human action, and the three signal colors of a
- * line (checked green, andon amber, stop red). Color always repeats a word or
- * a pattern. It never carries a meaning alone.
+ * Lineguard tokens. The room is a night control tower: violet dark, light
+ * cards for the figures a projector must read, and three quiet signals
+ * (green held, amber waiting, rose at risk). Color always repeats a word.
+ *
+ * The --lg-* properties are the theme. The older names (ink, sheet, stamp)
+ * stay so the case detail, which another change owns, still reads on the
+ * light card.
  */
+:root {
+  --lg-bg: #120e24;
+  --lg-surface: rgba(255, 255, 255, 0.06);
+  --lg-card: #f1eef8;
+  --lg-text: #f4f2fa;
+  --lg-text-on-card: #2a2440;
+  --lg-muted: #a79fc4;
+  --lg-accent: #9c8cf0;
+  --lg-risk: #d9708a;
+  --lg-ok: #7cc4a0;
+  --lg-warn: #e3b26b;
+  --lg-radius: 14px;
+}
+
 @theme {
   --color-*: initial;
   --color-white: #ffffff;
   --color-transparent: transparent;
 
-  /* Surfaces: one hue, small steps of lightness. */
-  --color-paper: #f3f2ed;
-  --color-sheet: #fcfbf8;
-  --color-well: #eceae3;
+  /* Page is night. Cards and the case detail stay light. */
+  --color-paper: #120e24;
+  --color-sheet: #ffffff;
+  --color-well: #ebe6f4;
 
-  /* Ink: four levels of text. */
-  --color-ink: #17212b;
-  --color-ink-2: #3c4753;
-  --color-ink-3: #55616d;
-  --color-ink-4: #646e7a;
+  --color-ink: #2a2440;
+  --color-ink-2: #4a4362;
+  --color-ink-3: #5c5474;
+  --color-ink-4: #7a7390;
 
-  /* Rules: hairlines that separate without shouting. */
-  --color-rule: rgb(23 33 43 / 0.1);
-  --color-rule-2: rgb(23 33 43 / 0.2);
-  --color-rule-ink: rgb(23 33 43 / 0.62);
+  --color-rule: rgb(42 36 64 / 0.1);
+  --color-rule-2: rgb(42 36 64 / 0.18);
+  --color-rule-ink: rgb(42 36 64 / 0.55);
 
-  /* Stamp: the approval of a human. The only accent. */
-  --color-stamp: #24449c;
-  --color-stamp-deep: #1a3378;
-  --color-stamp-wash: #e8ecf7;
+  /* Links and the old stamp name. Buttons use --lg-accent directly. */
+  --color-stamp: #5b4cc4;
+  --color-stamp-deep: #4336a0;
+  --color-stamp-wash: #e7e2fa;
 
-  /* Signals. */
-  --color-go: #1c6843;
-  --color-go-fill: #2a7d53;
-  --color-go-wash: #e1eee6;
-  --color-work: #3f5fb8;
-  --color-work-wash: #dfe5f6;
-  --color-wait: #874600;
-  --color-wait-fill: #c27708;
-  --color-wait-wash: #faeed6;
-  --color-stop: #a3261d;
-  --color-stop-fill: #b93a30;
-  --color-stop-wash: #f9e7e3;
+  /* Text colors stay dark enough on a light card. Fills use the theme. */
+  --color-go: #1b6b45;
+  --color-go-fill: #7cc4a0;
+  --color-go-wash: #e5f6ee;
+  --color-work: #6a5ad4;
+  --color-work-wash: #e6e1fa;
+  --color-wait: #8a5a14;
+  --color-wait-fill: #e3b26b;
+  --color-wait-wash: #f8f0dc;
+  --color-stop: #8e3050;
+  --color-stop-fill: #d9708a;
+  --color-stop-wash: #f8e4ea;
 
-  /* Type scale: ratio 1.2 from a 13px body. */
   --text-*: initial;
-  --text-cap: 0.6875rem;
+  --text-cap: 0.75rem;
   --text-cap--line-height: 1rem;
-  --text-meta: 0.75rem;
+  --text-meta: 0.8125rem;
   --text-meta--line-height: 1.125rem;
-  --text-body: 0.8125rem;
-  --text-body--line-height: 1.25rem;
-  --text-lead: 0.9375rem;
-  --text-lead--line-height: 1.375rem;
-  --text-title: 1.125rem;
-  --text-title--line-height: 1.5rem;
-  --text-figure: 1.375rem;
-  --text-figure--line-height: 1.75rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.4rem;
+  --text-lead: 1.0625rem;
+  --text-lead--line-height: 1.45rem;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.7rem;
+  --text-figure: 1.75rem;
+  --text-figure--line-height: 2rem;
   --text-hero: 2.5rem;
   --text-hero--line-height: 2.5rem;
 
-  /* Radius scale: tight, like printed forms. */
   --radius-*: initial;
-  --radius-tag: 2px;
-  --radius-ctl: 4px;
-  --radius-sheet: 6px;
-  --radius-panel: 8px;
+  --radius-tag: 6px;
+  --radius-ctl: 10px;
+  --radius-sheet: 12px;
+  --radius-panel: 14px;
 
   --ease-out-firm: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @theme inline {
   --font-sans:
-    var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
     sans-serif;
   --font-mono:
     var(--font-plex-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -82,9 +95,9 @@
 
 @layer base {
   html {
-    background-color: var(--color-paper);
-    color: var(--color-ink);
-    color-scheme: light;
+    background-color: var(--lg-bg);
+    color: var(--lg-text);
+    color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
@@ -98,8 +111,15 @@
     touch-action: manipulation;
   }
 
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
   :focus-visible {
-    outline: 2px solid var(--color-stamp);
+    outline: 2px solid var(--lg-accent);
     outline-offset: 2px;
   }
 
@@ -128,29 +148,26 @@
   }
 
   ::selection {
-    background-color: var(--color-stamp-wash);
+    background-color: var(--lg-accent);
+    color: var(--lg-text-on-card);
   }
 }
 
-/* Numbers, part numbers and clock times: the voice of the ledger. */
+/* Counts use the UI face. Identifiers use .lg-id. */
 @utility num {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
-/* Small tracked capitals for the names of fields. */
 @utility field-name {
   font-size: var(--text-cap);
   line-height: var(--text-cap--line-height);
-  font-weight: 500;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--color-ink-3);
 }
 
-/* Fill patterns. Each state of a unit has its own texture, so the bar reads
-   without color. */
 @utility fill-secured {
   background-color: var(--color-go-fill);
 }
@@ -188,7 +205,6 @@
     );
 }
 
-/* The gap between what the system says and what a document proves. */
 @utility fill-gap {
   background-color: var(--color-stop-wash);
   background-image: repeating-linear-gradient(
@@ -240,12 +256,705 @@ dialog.file-panel[open] {
 }
 
 dialog.file-panel::backdrop {
-  background-color: rgb(23 33 43 / 0.32);
+  background-color: rgb(18 14 36 / 0.62);
 }
 
 @media (prefers-reduced-motion: reduce) {
   dialog.file-panel {
     transition: none;
     transform: none;
+  }
+}
+
+/* The shell is one screen. The list and the case scroll on their own. */
+.lg-app {
+  background-color: var(--lg-bg);
+  background-image:
+    radial-gradient(1000px 460px at 6% -12%, rgba(156, 140, 240, 0.2), transparent 58%),
+    radial-gradient(760px 420px at 100% -8%, rgba(217, 112, 138, 0.12), transparent 54%);
+  background-attachment: fixed;
+}
+
+.lg-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.lg-loading {
+  display: grid;
+  align-content: center;
+  min-height: 100dvh;
+  padding: 48px;
+}
+
+.lg-loading h1 {
+  font-size: 2rem;
+  font-weight: 640;
+  letter-spacing: -0.04em;
+}
+
+.lg-loading p {
+  margin-top: 8px;
+  color: var(--lg-muted);
+}
+
+.lg-top {
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lg-top-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+}
+
+.lg-brand {
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.lg-customer {
+  margin-left: 8px;
+  color: var(--lg-muted);
+  font-weight: 500;
+}
+
+.lg-meta {
+  margin-top: 2px;
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+}
+
+.lg-top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lg-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+}
+
+.lg-select {
+  height: 40px;
+  max-width: 280px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: var(--lg-surface);
+  color: var(--lg-text);
+}
+
+.lg-offline {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lg-risk) 18%, transparent);
+  color: var(--lg-text);
+  font-size: 0.8125rem;
+}
+
+.lg-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+  padding: 12px 16px 16px;
+}
+
+.lg-kpis-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin-bottom: 8px;
+  color: var(--lg-muted);
+  font-size: 0.875rem;
+}
+
+.lg-kpis-head h2 {
+  color: var(--lg-text);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.lg-stop-clock {
+  color: var(--lg-text);
+  font-weight: 650;
+}
+
+.lg-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.lg-kpi {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 16px 12px 20px;
+  border-radius: var(--lg-radius);
+  background: var(--lg-card);
+  color: var(--lg-text-on-card);
+  color-scheme: light;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 16px 36px rgba(8, 6, 20, 0.32);
+}
+
+.lg-kpi::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  background: var(--lg-ok);
+}
+
+.lg-kpi[data-state='warn']::before {
+  background: var(--lg-warn);
+}
+
+.lg-kpi[data-state='risk']::before {
+  background: var(--lg-risk);
+}
+
+.lg-kpi-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lg-kpi h3 {
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.lg-kpi-id {
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--lg-text-on-card) 58%, var(--lg-card));
+  font-size: 0.75rem;
+}
+
+.lg-figures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin-top: 12px;
+  align-items: end;
+}
+
+.lg-hero {
+  font-size: 2.5rem;
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-hero-risk {
+  color: var(--lg-risk);
+}
+
+.lg-hero-time {
+  font-size: 1.85rem;
+  letter-spacing: -0.03em;
+}
+
+.lg-figures > div {
+  min-width: 0;
+}
+
+.lg-sub {
+  font-size: 1.45rem;
+  font-weight: 640;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.lg-kicker {
+  margin-top: 3px;
+  color: color-mix(in srgb, var(--lg-text-on-card) 64%, var(--lg-card));
+  font-size: 0.8125rem;
+  line-height: 1.2;
+}
+
+.lg-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 12px;
+  color: color-mix(in srgb, var(--lg-text-on-card) 78%, var(--lg-card));
+  font-size: 0.8125rem;
+}
+
+.lg-struck {
+  text-decoration: line-through;
+  text-decoration-color: var(--lg-risk);
+  text-decoration-thickness: 2px;
+}
+
+.lg-gap-note {
+  color: color-mix(in srgb, var(--lg-risk) 78%, #1a0810);
+  font-weight: 650;
+}
+
+.lg-ok-note {
+  color: color-mix(in srgb, var(--lg-ok) 42%, #102018);
+  font-weight: 650;
+}
+
+.lg-track {
+  margin-top: 8px;
+}
+
+.lg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 6px;
+  color: color-mix(in srgb, var(--lg-text-on-card) 72%, var(--lg-card));
+  font-size: 0.75rem;
+}
+
+.lg-legend-zero {
+  color: color-mix(in srgb, var(--lg-text-on-card) 42%, var(--lg-card));
+}
+
+.lg-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border: 1px solid rgb(42 36 64 / 0.18);
+  border-radius: 3px;
+  vertical-align: -1px;
+}
+
+.lg-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(42 36 64 / 0.1);
+  color: color-mix(in srgb, var(--lg-text-on-card) 70%, var(--lg-card));
+  font-size: 0.8125rem;
+}
+
+.lg-facts dd {
+  display: inline;
+  color: var(--lg-text-on-card);
+  font-weight: 600;
+}
+
+.lg-board {
+  display: grid;
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.lg-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--lg-radius);
+  background: var(--lg-surface);
+}
+
+.lg-panel-head {
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--lg-bg) 86%, white);
+}
+
+.lg-panel-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+}
+
+.lg-panel-title h2 {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.lg-open-line {
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+}
+
+.lg-hot {
+  color: var(--lg-warn);
+  font-weight: 650;
+}
+
+.lg-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lg-tab {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--lg-muted);
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.lg-tab[aria-selected='true'] {
+  background: var(--lg-card);
+  color: var(--lg-text-on-card);
+}
+
+.lg-tab-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--lg-risk);
+}
+
+.lg-panel-scroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.lg-problem {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 8px 8px 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lg-risk) 16%, transparent);
+  color: var(--lg-text);
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.lg-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.lg-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--lg-text);
+  text-align: left;
+}
+
+.lg-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lg-row[aria-current='true'] {
+  background: color-mix(in srgb, var(--lg-accent) 20%, transparent);
+  box-shadow: inset 3px 0 0 var(--lg-accent);
+}
+
+.lg-rank {
+  align-self: start;
+  width: 1.25rem;
+  padding-top: 3px;
+  color: var(--lg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.lg-row-main {
+  min-width: 0;
+}
+
+.lg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.lg-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.lg-chip-risk {
+  background: color-mix(in srgb, var(--lg-risk) 18%, transparent);
+  color: var(--lg-risk);
+}
+
+.lg-chip-warn {
+  background: color-mix(in srgb, var(--lg-warn) 18%, transparent);
+  color: var(--lg-warn);
+}
+
+.lg-chip-ok {
+  background: color-mix(in srgb, var(--lg-ok) 18%, transparent);
+  color: var(--lg-ok);
+}
+
+.lg-chip-neutral {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--lg-text);
+}
+
+.lg-kpi .lg-chip-risk {
+  background: color-mix(in srgb, var(--lg-risk) 16%, white);
+  color: color-mix(in srgb, var(--lg-risk) 72%, #1a0810);
+}
+
+.lg-kpi .lg-chip-warn {
+  background: color-mix(in srgb, var(--lg-warn) 28%, white);
+  color: color-mix(in srgb, var(--lg-warn) 55%, #241808);
+}
+
+.lg-kpi .lg-chip-ok {
+  background: color-mix(in srgb, var(--lg-ok) 28%, white);
+  color: color-mix(in srgb, var(--lg-ok) 45%, #102018);
+}
+
+.lg-row-title {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 640;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.lg-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 3px;
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+}
+
+.lg-row-risk {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: center;
+  color: var(--lg-risk);
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-row-risk-label {
+  margin-top: 3px;
+  color: var(--lg-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.lg-empty,
+.lg-more,
+.lg-receipts {
+  padding: 10px 14px;
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+}
+
+.lg-more {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lg-id {
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-log {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px 14px 18px;
+}
+
+.lg-log h3 {
+  margin-bottom: 6px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lg-muted);
+}
+
+.lg-log-count {
+  margin-left: 6px;
+  color: var(--lg-text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.lg-log li {
+  padding: 4px 0;
+  color: var(--lg-text);
+  font-size: 0.8125rem;
+}
+
+.lg-log-error {
+  color: var(--lg-risk);
+}
+
+.lg-log-time {
+  display: inline-block;
+  width: 7.5rem;
+  color: var(--lg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-log-payload {
+  color: var(--lg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.lg-detail {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 28px;
+  border-radius: var(--lg-radius);
+  background: var(--lg-card);
+  color: var(--lg-text-on-card);
+  color-scheme: light;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 16px 36px rgba(8, 6, 20, 0.32);
+}
+
+.lg-detail input,
+.lg-detail select,
+.lg-detail textarea {
+  background: #fff;
+  color: var(--lg-text-on-card);
+}
+
+@media (max-height: 860px) {
+  .lg-hero {
+    font-size: 2rem;
+  }
+
+  .lg-hero-time {
+    font-size: 1.5rem;
+  }
+
+  .lg-sub {
+    font-size: 1.2rem;
+  }
+
+  .lg-kpi {
+    padding: 10px 12px 8px 16px;
+  }
+
+  .lg-figures {
+    margin-top: 8px;
+    gap: 6px 12px;
+  }
+
+  .lg-note,
+  .lg-facts {
+    margin-top: 6px;
+  }
+
+  .lg-facts {
+    padding-top: 6px;
+  }
+
+  .lg-kpis-head {
+    margin-bottom: 4px;
+  }
+
+  .lg-main {
+    gap: 8px;
+    padding-top: 8px;
+    padding-bottom: 10px;
+  }
+}
+
+@media (max-width: 980px) {
+  .lg-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .lg-board {
+    grid-template-columns: 1fr;
+  }
+
+  .lg-panel,
+  .lg-detail {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .lg-panel-scroll {
+    overflow: visible;
   }
 }

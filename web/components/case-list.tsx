@@ -1,11 +1,25 @@
 'use client';
 
+import {useState} from 'react';
+import type {KeyboardEvent} from 'react';
+
 import {formatCount, plural} from '../lib/format';
-import type {CaseSummary, LineguardState} from '../lib/types';
-import {caseKindWord, caseStateTone, caseStateWord} from '../lib/words';
+import type {CaseSummary, LineguardState, LogEvent} from '../lib/types';
+import {caseKindWord, caseStateWord} from '../lib/words';
 
 import {usePage} from './page-context';
-import {Clock, Tag, cx} from './ui';
+import {Strips} from './strips';
+import {Clock} from './ui';
+
+type BoardTab = 'now' | 'later' | 'log';
+
+type Signal = 'ok' | 'warn' | 'risk';
+
+const SIGNAL_WORD: Record<Signal, string> = {
+  ok: 'Gedeckt',
+  warn: 'Achtung',
+  risk: 'Risiko',
+};
 
 interface RowProps {
   entry: CaseSummary;
@@ -22,28 +36,73 @@ function pendingParts(entry: CaseSummary): string[] {
   ].filter((part) => part !== null);
 }
 
+function rowSignal(entry: CaseSummary): Signal {
+  if (entry.state === 'unclosable' || (entry.units_at_risk ?? 0) > 0) {
+    return 'risk';
+  }
+  if (
+    entry.pending.decisions > 0 ||
+    entry.pending.corrections > 0 ||
+    entry.pending.emails > 0
+  ) {
+    return 'warn';
+  }
+  if (entry.state === 'confirmed' || entry.state === 'closed') {
+    return 'ok';
+  }
+  return 'warn';
+}
+
+/** Open decisions first, then copies at risk, then the line-stop time. */
+function byImpact(left: CaseSummary, right: CaseSummary): number {
+  const weight = (entry: CaseSummary) => {
+    if (entry.pending.decisions > 0) {
+      return 0;
+    }
+    if (entry.pending.corrections > 0 || entry.pending.emails > 0) {
+      return 1;
+    }
+    return 2;
+  };
+  const pending = weight(left) - weight(right);
+  if (pending !== 0) {
+    return pending;
+  }
+  const risk = (right.units_at_risk ?? 0) - (left.units_at_risk ?? 0);
+  if (risk !== 0) {
+    return risk;
+  }
+  const leftStop = left.breaks_at ?? left.act_by ?? '';
+  const rightStop = right.breaks_at ?? right.act_by ?? '';
+  if (leftStop !== rightStop) {
+    return leftStop < rightStop ? -1 : 1;
+  }
+  return (left.rank ?? 9999) - (right.rank ?? 9999);
+}
+
 function Row({entry, selected, onSelect}: RowProps) {
   const {labels} = usePage();
   const pending = pendingParts(entry);
+  const signal = rowSignal(entry);
+  const atRisk = entry.units_at_risk !== null && entry.units_at_risk > 0;
   return (
     <li>
       <button
         type="button"
         aria-current={selected ? 'true' : undefined}
         onClick={() => onSelect(entry.id)}
-        className={cx(
-          'flex w-full gap-3 border-l-2 px-3 py-2 text-left',
-          selected ? 'border-stamp bg-stamp-wash' : 'border-transparent hover:bg-well',
-        )}
+        className="lg-row"
       >
-        <span className="num w-5 shrink-0 pt-0.5 text-right text-meta text-ink-3">
-          {entry.rank ?? '–'}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-medium text-ink">{entry.title}</span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-2">
-            <Tag>{caseKindWord(entry.kind)}</Tag>
-            <Tag tone={caseStateTone(entry.state)}>{caseStateWord(entry.state)}</Tag>
+        <span className="lg-rank">{entry.rank ?? '–'}</span>
+        <span className="lg-row-main">
+          <span className="lg-chips">
+            <span className={`lg-chip lg-chip-${signal}`}>{SIGNAL_WORD[signal]}</span>
+            <span className="lg-chip lg-chip-neutral">{caseKindWord(entry.kind)}</span>
+          </span>
+          <span className="lg-row-title">{entry.title}</span>
+          <span className="lg-row-meta">
+            <span>{caseStateWord(entry.state)}</span>
+            {entry.component_id !== null && <span className="lg-id">{entry.component_id}</span>}
             {entry.breaks_at !== null ? (
               <span>
                 {labels.line} steht ab <Clock iso={entry.breaks_at} />
@@ -53,26 +112,25 @@ function Row({entry, selected, onSelect}: RowProps) {
                 handeln bis <Clock iso={entry.act_by} />
               </span>
             ) : null}
-            {entry.units_at_risk !== null && entry.units_at_risk > 0 && (
-              <span>
-                <span className="num font-medium text-stop">{formatCount(entry.units_at_risk)}</span>{' '}
-                {labels.units} in Gefahr
-              </span>
+            {pending.length > 0 && (
+              <span className="lg-hot">Wartet auf Freigabe: {pending.join(' · ')}</span>
             )}
           </span>
-          {pending.length > 0 && (
-            <span className="mt-1 block text-meta font-medium text-stamp-deep">
-              Wartet auf Freigabe: {pending.join(' · ')}
-            </span>
-          )}
         </span>
+        {atRisk ? (
+          <span className="lg-row-risk">
+            {formatCount(entry.units_at_risk)}
+            <span className="lg-row-risk-label">{labels.units}</span>
+          </span>
+        ) : (
+          <span />
+        )}
       </button>
     </li>
   );
 }
 
 interface GroupProps {
-  title: string;
   entries: CaseSummary[];
   total: number;
   empty: string;
@@ -80,72 +138,144 @@ interface GroupProps {
   onSelect: (id: number) => void;
 }
 
-function Group({title, entries, total, empty, selectedId, onSelect}: GroupProps) {
+function Group({entries, total, empty, selectedId, onSelect}: GroupProps) {
+  const ordered = [...entries].sort(byImpact);
   const more = total - entries.length;
+  if (ordered.length === 0) {
+    return <p className="lg-empty">{empty}</p>;
+  }
   return (
-    <section className="rounded-sheet border border-rule bg-sheet">
-      <header className="flex items-baseline justify-between border-b border-rule px-3 py-2">
-        <h2 className="text-lead font-semibold">{title}</h2>
-        <p className="num text-meta text-ink-3">{plural(Math.max(total, entries.length), 'Fall', 'Fälle')}</p>
-      </header>
-      {entries.length === 0 ? (
-        <p className="px-3 py-3 text-ink-3">{empty}</p>
-      ) : (
-        <ul className="divide-y divide-rule">
-          {entries.map((entry) => (
-            <Row key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={onSelect} />
-          ))}
-        </ul>
-      )}
+    <>
+      <ul className="lg-rows">
+        {ordered.map((entry) => (
+          <Row key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={onSelect} />
+        ))}
+      </ul>
       {more > 0 && (
-        <p className="border-t border-rule px-3 py-2 text-meta text-ink-3">
+        <p className="lg-more">
           {more === 1 ? '1 weiterer Fall' : `${formatCount(more)} weitere Fälle`}
         </p>
       )}
-    </section>
+    </>
   );
 }
 
 interface CaseListProps {
   state: LineguardState;
+  events: LogEvent[];
   selectedId: number | null;
   onSelect: (id: number) => void;
 }
 
-export function CaseList({state, selectedId, onSelect}: CaseListProps) {
-  const {counters, booking_review: review} = state;
-  const waiting = [
-    plural(counters.open_decisions, 'Entscheidung', 'Entscheidungen'),
-    plural(counters.open_corrections, 'Korrektur', 'Korrekturen'),
-    plural(counters.open_emails, 'Mailentwurf', 'Mailentwürfe'),
+export function CaseList({state, events, selectedId, onSelect}: CaseListProps) {
+  const [tab, setTab] = useState<BoardTab>('now');
+  const {counters, booking_review: review, problems} = state;
+  const firstProblem = problems.length > 0 ? problems[0] : undefined;
+  const tabs: {id: BoardTab; label: string; count: number}[] = [
+    {id: 'now', label: 'Jetzt', count: Math.max(counters.now_total, state.cases_now.length)},
+    {id: 'later', label: 'Danach', count: Math.max(counters.later_total, state.cases_later.length)},
+    {id: 'log', label: 'Protokoll', count: events.length},
   ];
+
+  const onTabsKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const order: BoardTab[] = ['now', 'later', 'log'];
+    const index = order.indexOf(tab);
+    let next = index;
+    if (event.key === 'ArrowRight') {
+      next = (index + 1) % order.length;
+    } else if (event.key === 'ArrowLeft') {
+      next = (index - 1 + order.length) % order.length;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    const id = order[next];
+    if (id === undefined) {
+      return;
+    }
+    setTab(id);
+    document.getElementById(`tab-${id}`)?.focus();
+  };
+
   return (
-    <nav aria-label="Fälle" className="space-y-3">
-      <p className="text-meta text-ink-2">
-        <span className="field-name">Offen </span>
-        {waiting.join(' · ')}
-      </p>
-      <Group
-        title="Jetzt"
-        entries={state.cases_now}
-        total={counters.now_total}
-        empty="Keine Lücke. Jede Linie ist gedeckt."
-        selectedId={selectedId}
-        onSelect={onSelect}
-      />
-      <Group
-        title="Danach"
-        entries={state.cases_later}
-        total={counters.later_total}
-        empty="Nichts, was später droht."
-        selectedId={selectedId}
-        onSelect={onSelect}
-      />
-      <p className="px-1 text-meta text-ink-3">
-        <span className="num text-ink">{formatCount(review.receipts_checked)}</span> Wareneingänge
-        geprüft, <span className="num text-ink">{formatCount(review.findings)}</span>{' '}
-        {review.findings === 1 ? 'Befund' : 'Befunde'}
-      </p>
+    <nav aria-label="Fälle" className="lg-panel">
+      <div className="lg-panel-head">
+        <div className="lg-panel-title">
+          <h2>Fälle</h2>
+          <p className="lg-open-line">
+            Offen:{' '}
+            <span className={counters.open_decisions > 0 ? 'lg-hot' : undefined}>
+              {plural(counters.open_decisions, 'Entscheidung', 'Entscheidungen')}
+            </span>
+            {' · '}
+            {plural(counters.open_corrections, 'Korrektur', 'Korrekturen')}
+            {' · '}
+            {plural(counters.open_emails, 'Mailentwurf', 'Mailentwürfe')}
+          </p>
+        </div>
+        <div role="tablist" aria-label="Fallgruppen" className="lg-tabs" onKeyDown={onTabsKey}>
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              id={`tab-${item.id}`}
+              aria-selected={tab === item.id}
+              aria-controls={`panel-${item.id}`}
+              tabIndex={tab === item.id ? 0 : -1}
+              className="lg-tab"
+              onClick={() => setTab(item.id)}
+            >
+              {item.label}
+              <span className="lg-tab-count">{formatCount(item.count)}</span>
+              {item.id === 'log' && problems.length > 0 && (
+                <span className="lg-dot" aria-hidden="true" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+      {firstProblem !== undefined && tab !== 'log' && (
+        <button type="button" className="lg-problem" onClick={() => setTab('log')}>
+          <span className="lg-hot">{plural(problems.length, 'Problem', 'Probleme')}: </span>
+          {firstProblem.error ?? 'Fehler ohne Text'}
+        </button>
+      )}
+      <div
+        role="tabpanel"
+        id={`panel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+        className="lg-panel-scroll"
+      >
+        {tab === 'now' && (
+          <Group
+            entries={state.cases_now}
+            total={counters.now_total}
+            empty="Keine Lücke. Jede Linie ist gedeckt."
+            selectedId={selectedId}
+            onSelect={onSelect}
+          />
+        )}
+        {tab === 'later' && (
+          <Group
+            entries={state.cases_later}
+            total={counters.later_total}
+            empty="Nichts, was später droht."
+            selectedId={selectedId}
+            onSelect={onSelect}
+          />
+        )}
+        {tab === 'log' && (
+          <div className="lg-log">
+            <p className="lg-receipts">
+              <span className="lg-id">{formatCount(review.receipts_checked)}</span> Wareneingänge
+              geprüft, <span className="lg-id">{formatCount(review.findings)}</span>{' '}
+              {review.findings === 1 ? 'Befund' : 'Befunde'}
+            </p>
+            <Strips problems={problems} events={events} />
+          </div>
+        )}
+      </div>
     </nav>
   );
 }
