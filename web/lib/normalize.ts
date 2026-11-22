@@ -364,11 +364,22 @@ function evidenceFile(value: unknown): EvidenceFile | null {
   };
 }
 
+/**
+ * A quantity as a document prints it. `80.000` and `80,000` with groups of
+ * three digits are 80000, not 80. Other values parse as plain numbers.
+ */
+function printedQuantity(value: unknown): number | null {
+  if (typeof value === 'string' && /^\d{1,3}([.,\s]\d{3})+$/.test(value.trim())) {
+    return Number(value.trim().replace(/[.,\s]/g, ''));
+  }
+  return numberOrNull(value);
+}
+
 /** `data.printed_value` and `data.corrected` mark a handwritten correction. */
 function noteMarks(value: unknown): {printed_value: number | null; corrected: boolean} {
   const data = record(value);
   return {
-    printed_value: numberOrNull(data.printed_value),
+    printed_value: printedQuantity(data.printed_value),
     corrected: flag(data.corrected),
   };
 }

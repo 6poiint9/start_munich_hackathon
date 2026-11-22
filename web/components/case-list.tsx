@@ -5,46 +5,18 @@ import type {KeyboardEvent} from 'react';
 
 import {formatCount, plural} from '../lib/format';
 import type {CaseSummary, LineguardState, LogEvent} from '../lib/types';
-import {caseKindWord, caseStateWord, roleWord} from '../lib/words';
+import {caseStateWord} from '../lib/words';
+import type {Tone} from '../lib/words';
 
-import {usePage} from './page-context';
 import {Strips} from './strips';
-import {Clock} from './ui';
+import {Tag} from './ui';
 
 type BoardTab = 'now' | 'later' | 'log';
-
-type Signal = 'ok' | 'warn' | 'risk';
 
 interface RowProps {
   entry: CaseSummary;
   selected: boolean;
   onSelect: (id: number) => void;
-}
-
-function pendingParts(entry: CaseSummary): string[] {
-  const {decisions, corrections, emails} = entry.pending;
-  return [
-    decisions > 0 ? plural(decisions, 'decision', 'decisions') : null,
-    corrections > 0 ? plural(corrections, 'ERP correction', 'ERP corrections') : null,
-    emails > 0 ? plural(emails, 'mail draft', 'mail drafts') : null,
-  ].filter((part) => part !== null);
-}
-
-function rowSignal(entry: CaseSummary): Signal {
-  if (entry.state === 'unclosable' || (entry.units_at_risk ?? 0) > 0) {
-    return 'risk';
-  }
-  if (
-    entry.pending.decisions > 0 ||
-    entry.pending.corrections > 0 ||
-    entry.pending.emails > 0
-  ) {
-    return 'warn';
-  }
-  if (entry.state === 'confirmed' || entry.state === 'closed') {
-    return 'ok';
-  }
-  return 'warn';
 }
 
 /** Open decisions first, then copies at risk, then the line-stop time. */
@@ -74,79 +46,53 @@ function byImpact(left: CaseSummary, right: CaseSummary): number {
   return (left.rank ?? 9999) - (right.rank ?? 9999);
 }
 
-/** The next thing that happens in a case, in one short sentence. */
-function nextStep(entry: CaseSummary): string | null {
-  const pending = pendingParts(entry);
-  if (pending.length > 0) {
-    return `Waits for approval: ${pending.join(', ')}.`;
+/** A short title: the part for a shortage, the receipt for a booking error. */
+function rowTitle(entry: CaseSummary): string {
+  const cut = entry.title.indexOf(':');
+  const head = cut > 0 ? entry.title.slice(0, cut) : entry.title;
+  if (entry.kind === 'gap') {
+    return head.replace(/\s*\([^)]*\)\s*$/, '').trim() || head;
   }
-  if (entry.state === 'unclosable') {
-    return entry.residual_qty !== null && entry.residual_qty > 0
-      ? `No option arrives in time. ${formatCount(entry.residual_qty)} stay short.`
-      : 'No option arrives in time.';
+  if (entry.kind === 'booking_finding') {
+    return head;
   }
-  if (entry.state === 'in_execution' || entry.state === 'approved') {
-    return 'Approved. The step is running.';
-  }
-  return null;
+  return entry.title;
 }
 
-function Row({entry, selected, onSelect}: RowProps) {
-  const {labels} = usePage();
-  const next = nextStep(entry);
-  const signal = rowSignal(entry);
-  const atRisk = entry.units_at_risk !== null && entry.units_at_risk > 0;
-  const owner = entry.owner_role === null ? null : roleWord(entry.owner_role);
+function rowPill(entry: CaseSummary, waiting: boolean): {tone: Tone; text: string} {
+  if (waiting) {
+    return {tone: 'wait', text: 'Your turn'};
+  }
+  if (entry.state === 'unclosable') {
+    return {tone: 'stop', text: 'No fix'};
+  }
+  if (entry.state === 'approved' || entry.state === 'in_execution') {
+    return {tone: 'go', text: 'Approved'};
+  }
+  return {tone: 'neutral', text: caseStateWord(entry.state)};
+}
+
+function Row({entry, selected, onSelect, state, partners}: RowProps & {state: LineguardState; partners: number[]}) {
+  const ids = [entry.id, ...partners];
+  const waiting = state.approvals.some((item) => item.case_id !== null && ids.includes(item.case_id));
+  const pill = rowPill(entry, waiting);
   return (
     <li>
       <button
         type="button"
         aria-current={selected ? 'true' : undefined}
         onClick={() => onSelect(entry.id)}
-        className="lg-row"
+        className="lg-row lg-row-card lg-row-min"
       >
-        <span className="lg-rank">{entry.rank ?? '–'}</span>
-        <span className="lg-row-main">
-          <span className="lg-row-meta">
-            <span className="lg-signal" data-state={signal}>
-              {caseKindWord(entry.kind)}
-            </span>
-            <span>· {caseStateWord(entry.state)}</span>
-            {entry.component_id !== null && <span className="lg-id">· {entry.component_id}</span>}
-          </span>
-          <span className="lg-row-title">{entry.title}</span>
-          <span className="lg-row-meta">
-            {entry.breaks_at !== null ? (
-              <span>
-                Line stops <Clock iso={entry.breaks_at} distance />
-              </span>
-            ) : entry.act_by !== null ? (
-              <span>
-                Act by <Clock iso={entry.act_by} distance />
-              </span>
-            ) : entry.due_at !== null ? (
-              <span>
-                Demand date <Clock iso={entry.due_at} />
-              </span>
-            ) : null}
-            {owner !== null && <span>· Owner: {owner}</span>}
-          </span>
-          {next !== null && <span className="lg-row-next">{next}</span>}
-        </span>
-        {atRisk ? (
-          <span className="lg-row-risk">
-            {formatCount(entry.units_at_risk)}
-            <span className="lg-row-risk-label">{labels.units} at risk</span>
-          </span>
-        ) : (
-          <span />
-        )}
+        <span className="lg-row-title">{rowTitle(entry)}</span>
+        <Tag tone={pill.tone}>{pill.text}</Tag>
       </button>
     </li>
   );
 }
 
 interface GroupProps {
+  state: LineguardState;
   entries: CaseSummary[];
   total: number;
   empty: string;
@@ -154,8 +100,17 @@ interface GroupProps {
   onSelect: (id: number) => void;
 }
 
-function Group({entries, total, empty, selectedId, onSelect}: GroupProps) {
-  const ordered = [...entries].sort(byImpact);
+function Group({state, entries, total, empty, selectedId, onSelect}: GroupProps) {
+  const gapParts = new Map(
+    entries.filter((entry) => entry.kind === 'gap' && entry.component_id !== null).map((entry) => [entry.component_id, entry.id]),
+  );
+  const partnersOf = (entry: CaseSummary) =>
+    entry.kind === 'gap'
+      ? entries.filter((other) => other.kind === 'booking_finding' && other.component_id === entry.component_id).map((other) => other.id)
+      : [];
+  const ordered = [...entries]
+    .filter((entry) => !(entry.kind === 'booking_finding' && gapParts.has(entry.component_id)))
+    .sort(byImpact);
   const more = total - entries.length;
   if (ordered.length === 0) {
     return <p className="lg-empty">{empty}</p>;
@@ -164,7 +119,7 @@ function Group({entries, total, empty, selectedId, onSelect}: GroupProps) {
     <>
       <ul className="lg-rows">
         {ordered.map((entry) => (
-          <Row key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={onSelect} />
+          <Row key={entry.id} entry={entry} selected={entry.id === selectedId || partnersOf(entry).includes(selectedId ?? -1)} onSelect={onSelect} state={state} partners={partnersOf(entry)} />
         ))}
       </ul>
       {more > 0 && (
@@ -268,6 +223,7 @@ export function CaseList({state, events, selectedId, onSelect}: CaseListProps) {
       >
         {tab === 'now' && (
           <Group
+            state={state}
             entries={state.cases_now}
             total={counters.now_total}
             empty="No shortage. Each line is covered."
@@ -277,6 +233,7 @@ export function CaseList({state, events, selectedId, onSelect}: CaseListProps) {
         )}
         {tab === 'later' && (
           <Group
+            state={state}
             entries={state.cases_later}
             total={counters.later_total}
             empty="No risk for a later date."

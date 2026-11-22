@@ -12,6 +12,16 @@ interface OverviewProps {
   onOpenCase: (id: number) => void;
 }
 
+
+/** The first sentence of a text. The full text stays on the approval page. */
+function firstSentence(text: string | null): string | null {
+  if (text === null) {
+    return null;
+  }
+  const match = /^.*?[.!?](?=\s|$)/.exec(text.trim());
+  return match === null ? text : match[0];
+}
+
 export function Overview({state, events, onOpenCase}: OverviewProps) {
   const {timezone, now} = usePage();
   const approval = state.approvals[0];
@@ -54,7 +64,7 @@ export function Overview({state, events, onOpenCase}: OverviewProps) {
           {approval ? (
             <>
               <h2 id="overview-decision">{approval.title}</h2>
-              <p>{approval.condition ?? approval.note ?? approval.summary ?? 'Review the proposed action before you decide.'}</p>
+              <p>{firstSentence(approval.condition ?? approval.note ?? approval.summary) ?? 'Review the proposed action before you decide.'}</p>
               <dl className="dashboard-decision-facts">
                 <div><dt>Who approves</dt><dd>{approval.approver_name ?? (approval.needs_roles.map(roleWord).join(' or ') || 'Any person')}</dd></div>
                 <div><dt>Decide by</dt><dd>{approval.deadline ? formatClock(approval.deadline, timezone, now) : 'Not set'}</dd></div>
