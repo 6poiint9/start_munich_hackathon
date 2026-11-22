@@ -1,3 +1,12 @@
+ What I would change
+1. Open with the company, not the case: "We are Lineguard. We find wrong stock bookings on the day they happen. Soony is our first customer."
+2. Close with the business in three spoken sentences after the demo: the value (€200,000 at risk against €16,800), the price, and who else has the problem.
+3. Agree on the price in the team before the pitch, so that everyone gives the same answer to the jury.
+4. If the jury asks about limits, name the last two weak points yourself.
+
+
+
+
 Ausgangspunkt:
 - Daten verändern sich ständig
 
