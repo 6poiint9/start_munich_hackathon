@@ -6,6 +6,10 @@
 
 
 
+<img width="2032" height="550" alt="image" src="https://github.com/user-attachments/assets/8cc17df6-70f8-4b23-9c97-3ffe629a7a62" />
+
+
+
 
 Ausgangspunkt:
 - Daten verändern sich ständig
