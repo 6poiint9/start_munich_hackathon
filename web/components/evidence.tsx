@@ -41,7 +41,7 @@ interface FileDialogProps {
   onClose: () => void;
 }
 
-function FileDialog({file, locator, onClose}: FileDialogProps) {
+export function FileDialog({file, locator, onClose}: FileDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

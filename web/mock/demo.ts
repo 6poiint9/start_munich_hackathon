@@ -91,6 +91,8 @@ function fact(
     confidence: 1,
     extracted_by: 'parser',
     suspicious: false,
+    printed_value: null,
+    corrected: false,
     file: null,
     locator: null,
     ...fields,
@@ -204,6 +206,8 @@ const noteQty = fact({
   source_rank: 1,
   confidence: 0.95,
   extracted_by: 'vision',
+  printed_value: 1000,
+  corrected: true,
   file: NOTE_FILE,
   locator: 'page 1, row 1',
 });
@@ -219,6 +223,49 @@ const orderQty = fact({
   locator: 'row 2',
 });
 
+function receiptBundle(): Pick<CaseView, 'finding' | 'corrections'> {
+  return {
+    finding: {
+      gr_number: 'WE-1001',
+      booked_qty: 1000,
+      proposed_qty: 100,
+      delta_qty: -900,
+      cause: 'decimal_shift',
+      checks: [
+        {name: 'gr_vs_po', status: 'fail', value: 100, fact_ids: [13]},
+        {name: 'gr_vs_delivery_note', status: 'fail', value: 100, fact_ids: [12]},
+        {name: 'gr_vs_weight', status: 'fail', value: 104, fact_ids: []},
+        {name: 'gr_vs_history', status: 'fail', value: 120, fact_ids: []},
+        {name: 'duplicate', status: 'pass', value: null, fact_ids: []},
+        {name: 'unreferenced', status: 'pass', value: null, fact_ids: []},
+        {name: 'gr_note_exception', status: 'no_data', value: null, fact_ids: []},
+      ],
+      agreeing_sources: 3,
+      status: 'proposed',
+    },
+    corrections: [
+      {
+        id: 1,
+        status: 'proposed',
+        payload: {
+          kind: 'gr_qty',
+          gr_number: 'WE-1001',
+          po_number: '4500001',
+          material_id: 'RAHMEN-01',
+          booked_qty: 1000,
+          proposed_qty: 100,
+          delta_qty: -900,
+        },
+        approver_role: 'erp_owner',
+        approved_by: null,
+        approved_at: null,
+        reject_reason: null,
+        created_at: NOW,
+      },
+    ],
+  };
+}
+
 function frameGap(): CaseView {
   const base = normalizeCase(caseJson);
   const caseSummary = summary({
@@ -227,9 +274,10 @@ function frameGap(): CaseView {
     state: 'plan_proposed',
     rank: 1,
     breaks_at: '2027-03-03T10:27:00Z',
-    pending: {decisions: 1, corrections: 0, emails: 1},
+    pending: {decisions: 1, corrections: 1, emails: 1},
   });
   return view(caseSummary, {
+    ...receiptBundle(),
     detail: {
       ...(base?.detail ?? detail({})),
       latest_useful_arrival: '2027-03-03T08:00:00Z',
@@ -354,44 +402,7 @@ function receiptFinding(): CaseView {
   });
   return view(caseSummary, {
     evidence: [noteQty, orderQty, receiptBooked],
-    finding: {
-      gr_number: 'WE-1001',
-      booked_qty: 1000,
-      proposed_qty: 100,
-      delta_qty: -900,
-      cause: 'decimal_shift',
-      checks: [
-        {name: 'gr_vs_po', status: 'fail', value: 100, fact_ids: [13]},
-        {name: 'gr_vs_delivery_note', status: 'fail', value: 100, fact_ids: [12]},
-        {name: 'gr_vs_weight', status: 'fail', value: 104, fact_ids: []},
-        {name: 'gr_vs_history', status: 'fail', value: 120, fact_ids: []},
-        {name: 'duplicate', status: 'pass', value: null, fact_ids: []},
-        {name: 'unreferenced', status: 'pass', value: null, fact_ids: []},
-        {name: 'gr_note_exception', status: 'no_data', value: null, fact_ids: []},
-      ],
-      agreeing_sources: 3,
-      status: 'proposed',
-    },
-    corrections: [
-      {
-        id: 1,
-        status: 'proposed',
-        payload: {
-          kind: 'gr_qty',
-          gr_number: 'WE-1001',
-          po_number: '4500001',
-          material_id: 'RAHMEN-01',
-          booked_qty: 1000,
-          proposed_qty: 100,
-          delta_qty: -900,
-        },
-        approver_role: 'erp_owner',
-        approved_by: null,
-        approved_at: null,
-        reject_reason: null,
-        created_at: NOW,
-      },
-    ],
+    ...receiptBundle(),
   });
 }
 
@@ -664,7 +675,7 @@ export function createDemo(): DemoData {
       now_total: 4,
       later_total: 3,
       open_decisions: 1,
-      open_corrections: 1,
+      open_corrections: 2,
       open_emails: 1,
     },
     booking_review: {receipts_checked: 4, findings: 2},

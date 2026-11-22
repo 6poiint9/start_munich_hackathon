@@ -174,6 +174,13 @@ export interface Evidence {
   confidence: number | null;
   extracted_by: string | null;
   suspicious: boolean;
+  /**
+   * The printed number a handwritten correction replaced.
+   * It comes from `data.printed_value` on the fact.
+   */
+  printed_value: number | null;
+  /** True when the reader set `data.corrected` on the fact. */
+  corrected: boolean;
   file: EvidenceFile | null;
   locator: string | null;
 }

@@ -288,6 +288,15 @@ function evidenceFile(value: unknown): EvidenceFile | null {
   };
 }
 
+/** `data.printed_value` and `data.corrected` mark a handwritten correction. */
+function noteMarks(value: unknown): {printed_value: number | null; corrected: boolean} {
+  const data = record(value);
+  return {
+    printed_value: numberOrNull(data.printed_value),
+    corrected: flag(data.corrected),
+  };
+}
+
 function evidence(value: unknown): Evidence[] {
   const raw = record(value);
   const factId = numberOrNull(raw.fact_id);
@@ -314,6 +323,7 @@ function evidence(value: unknown): Evidence[] {
       confidence: numberOrNull(raw.confidence),
       extracted_by: textOrNull(raw.extracted_by),
       suspicious: flag(raw.suspicious),
+      ...noteMarks(raw.data),
       file: evidenceFile(raw.file),
       locator: textOrNull(raw.locator),
     },
