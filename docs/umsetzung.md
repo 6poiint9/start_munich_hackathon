@@ -18,6 +18,10 @@ Gebaut und mit Tests belegt (`pytest -q`: 76 Tests, CI grün): A1 bis A4, A5 (AP
 
 Auf dem eingefrorenen Soony-Stand liefert die Kette aus echten Dokumenten: Artbook −5.900 (Buchungsbefund `decimal_shift` mit zwei Quellen), Statue −3.400 (Prüfbericht), Hüllen −32.000, Spielkarten −6.800, Sleeves ohne Lücke nach Abzug von 64.000 Rev. B und 4.000 falsch beschrifteten Stück, Magnete ohne Alarm. „System sagt“ 100 %, gesichert 91,8 % und 95,0 %.
 
+Live geprüft am So 22.11., 01:00 bis 01:05, mit echter Uhr, Portal als Quelle und `MAIL_MODE=LIVE`: Vier Statusfragen gingen an vier Lieferanten-Adressen (koreanisch, chinesisch, englisch). Alle vier Antworten kamen in unter fünf Minuten. Lineguard las das Postfach, ordnete jede Antwort über den Mail-Verlauf ihrem Fall zu und speicherte daraus Fakten vom Rang 2. Bestellungen und andere Mails mit Zusage gehen weiter nur nach einem Klick raus.
+
+Nach einem Wechsel von `DRY_RUN` auf `LIVE` sendet `python -m lineguard send-logged` die Mails, die bisher nur im Protokoll standen. `python -m lineguard reread <Text>` liest Dateien mit dem aktuellen Prompt neu.
+
 Abweichungen von den Spezifikationen:
 
 | Thema | Gebaut | Spezifikation |

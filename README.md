@@ -24,7 +24,7 @@ cd web && npm ci && npm run dev
 
 Open `http://localhost:3000`.
 
-Every command also runs without `make`. `python -m lineguard --help` lists the commands: `init`, `import`, `run`, `recompute`, `demo-save`, `demo-reset`.
+Every command also runs without `make`. `python -m lineguard --help` lists the commands: `init`, `import`, `run`, `recompute`, `reread`, `send-logged`, `demo-save`, `demo-reset`.
 
 ## Configuration
 
