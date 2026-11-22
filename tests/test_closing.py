@@ -354,3 +354,34 @@ def test_rejected_decision_reopens_the_case(tmp_path, monkeypatch):
     assert response.json()["status"] == "rejected"
     assert _rows(rt, "cases", "kind = 'gap'")[0]["state"] == "unclosable"
     assert [m["status"] for m in _rows(rt, "emails", "commits_money = 1")] == ["discarded"]
+
+
+def test_action_runs_again_when_the_missing_contact_arrives(tmp_path, monkeypatch):
+    rt, _ = _setup(tmp_path, monkeypatch)
+    case = _rows(rt, "cases", "kind = 'gap'")[0]
+    decision_id = db.insert(
+        rt.conn, "decisions", rt.ws, case_id=case["id"], title="Pick up",
+        options=[], status="approved", decided_by="P1", decided_at=clock.iso(),
+        dedupe_key="test:pickup", created_at=clock.iso())
+    options = {}
+    for supplier in ("LIEF-A", "LIEF-UNKNOWN"):
+        options[supplier] = db.insert(
+            rt.conn, "options", rt.ws, case_id=case["id"], kind="release_held",
+            title="Pick up", qty_gain=20, supplier_id=supplier, action_kind="pickup",
+            status="in_execution", decision_id=decision_id, data={},
+            dedupe_key=f"test:pickup:{supplier}", updated_at=clock.iso())
+        db.insert(rt.conn, "actions", rt.ws, case_id=case["id"],
+                  option_id=options[supplier], type="escalate", kind="pickup",
+                  target="no_contact", status="failed", created_at=clock.iso(),
+                  idempotency_key=f"{case['id']}:pickup:{supplier}:{options[supplier]}")
+
+    action.retry_missing_contacts(rt)
+    action.retry_missing_contacts(rt)
+
+    mails = _rows(rt, "emails", "direction = 'out' AND action_id IN "
+                  "(SELECT id FROM actions WHERE kind = 'pickup')")
+    assert len(mails) == 1
+    assert mails[0]["to_addr"] == "jan@rahmenbau.example"
+    assert (mails[0]["status"], mails[0]["approved_by"]) == ("dry_run", "P1")
+    still_failed = _rows(rt, "actions", "target = 'no_contact'")
+    assert [row["option_id"] for row in still_failed] == [options["LIEF-UNKNOWN"]]

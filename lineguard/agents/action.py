@@ -336,9 +336,37 @@ def receive(rt: runtime.Runtime, message: email.message.EmailMessage) -> int | N
     return email_id
 
 
+def retry_missing_contacts(rt: runtime.Runtime) -> None:
+    """Runs actions again that failed only because a contact was missing.
+
+    On a first import, a decision can come before the reader stored the
+    supplier profile. When the contact arrives later, the action runs
+    again. An approved decision counts as approval of its mail.
+    """
+    failed = db.rows(
+        rt.conn, rt.ws,
+        "SELECT a.id, a.option_id, d.status AS decision_status, d.decided_by "
+        "FROM actions a JOIN options o "
+        "ON o.id = a.option_id AND o.workspace_id = a.workspace_id "
+        "JOIN contacts k ON k.supplier_id = o.supplier_id "
+        "AND k.workspace_id = a.workspace_id AND k.email LIKE '%@%' "
+        "LEFT JOIN decisions d ON d.id = o.decision_id AND d.workspace_id = a.workspace_id "
+        "WHERE a.workspace_id = ? AND a.target = 'no_contact' AND a.status = 'failed' "
+        "AND o.status IN ('approved', 'in_execution', 'proposed', 'candidate')")
+    for row in failed:
+        rt.conn.execute("DELETE FROM actions WHERE workspace_id = ? AND id = ?",
+                        (rt.ws, row["id"]))
+        payload: dict[str, Any] = {"option_id": row["option_id"]}
+        if row["decision_status"] == "approved" and row["decided_by"]:
+            payload["approved_by"] = row["decided_by"]
+        logger.info("Contact found, action for option %s runs again", row["option_id"])
+        handle_requested(rt, {"payload": payload})
+
+
 def poll_and_follow_up(rt: runtime.Runtime, event: dict[str, Any] | None = None) -> None:
-    """Handles the action tick: read the inbox, then chase silent threads."""
+    """Handles the action tick: retry, read the inbox, chase silent threads."""
     del event
+    retry_missing_contacts(rt)
     known = {row["message_id"] for row in db.rows(
         rt.conn, rt.ws,
         "SELECT message_id FROM emails WHERE workspace_id = ? AND message_id IS NOT NULL")}
