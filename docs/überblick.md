@@ -32,3 +32,15 @@ Ablauf in der App:
 Technisch:
 - Entscheidungslogik wann etwas angeschaut wird/ behebt wird. Schwelle an Quellen oder wie werden Anomalien bewertet?
 - Agent weiß immer die richtige Ansprechperson
+
+
+Who else has this problem:
+Any company that brings parts from several suppliers together at one site for a fixed date, and whose ERP is filled by hand. Examples:
+• Product launches in consumer electronics
+• Seasonal goods in retail
+• Start of series production in machine building
+• Trade fair and promotion goods
+
+Pricing for Sooney:
+My proposal is a subscription per site of about €5,000 per month, so about €60,000 per year for the Hamburg site. That is less than a third of the goods value of the art book case alone.
+This number is an assumption. Nobody at Soony gave us a budget, the retail price of a copy, or the exact hours Nils spends. If the jury asks, say that it is our proposal and name the two figures behind it (€204,000 at risk against €16,800 for the early fix).
