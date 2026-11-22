@@ -1,6 +1,6 @@
 workspace: soony_gh6
 customer: Soony
-labels: {deadline: "Launch", product: "Edition", line: "Packlinie", units: "Kopien"}
+labels: {deadline: "launch", product: "Edition", line: "packing line", units: "copies"}
 timezone: Europe/Berlin
 deadline: 2026-11-22T20:00:00+01:00
 site: DC-HAM

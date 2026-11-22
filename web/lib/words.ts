@@ -249,6 +249,11 @@ const ROLES = new Map([
   ['erp_owner', 'ERP owner'],
   ['site_lead', 'Site lead'],
   ['procurement_head', 'Head of purchasing'],
+  ['head_of_procurement', 'Head of purchasing'],
+  ['cpo', 'Chief procurement officer'],
+  ['cfo', 'Chief financial officer'],
+  ['quality_compliance', 'Quality and compliance'],
+  ['supplier_quality_lead', 'Supplier quality lead'],
 ]);
 
 export function roleWord(role: string | null): string {

@@ -3,8 +3,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import {Approvals} from '../components/approvals';
-import {CaseDetail} from '../components/case-detail';
-import {CaseCounters, CaseList} from '../components/case-list';
+import {CaseFlow} from '../components/case-flow';
+import {CaseList} from '../components/case-list';
 import {Coverage} from '../components/coverage';
 import {DashboardNav} from '../components/dashboard-nav';
 import type {DashboardView} from '../components/dashboard-nav';
@@ -18,7 +18,7 @@ import {usePersonId} from '../lib/use-person';
 
 // Next.js needs the page as the default export.
 export default function Page() {
-  const {state, view, events, selectedId, mock, offline, select, reload} = useLineguard();
+  const {state, events, selectedId, mock, offline, select, reload} = useLineguard();
   const personId = usePersonId();
   const [current, setCurrent] = useState<DashboardView>('overview');
   const detailRef = useRef<HTMLDivElement>(null);
@@ -102,12 +102,11 @@ export default function Page() {
                 <section className="lg-section lg-wrap" aria-labelledby="cases-title">
                   <header className="lg-section-head">
                     <h2 id="cases-title">Open cases</h2>
-                    <CaseCounters state={state} />
                   </header>
                   <div className="lg-board">
                     <CaseList state={state} events={events} selectedId={selectedId} onSelect={select} />
                     <div className="lg-detail" ref={detailRef}>
-                      <CaseDetail view={view} selectedId={selectedId} live={state.mail_mode === 'LIVE'} />
+                      <CaseFlow state={state} caseId={selectedId} />
                     </div>
                   </div>
                 </section>
