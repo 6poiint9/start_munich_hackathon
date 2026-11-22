@@ -1,5 +1,6 @@
 import datetime
 import email.message
+import json
 
 from fastapi import testclient
 import pytest
@@ -385,3 +386,27 @@ def test_action_runs_again_when_the_missing_contact_arrives(tmp_path, monkeypatc
     assert (mails[0]["status"], mails[0]["approved_by"]) == ("dry_run", "P1")
     still_failed = _rows(rt, "actions", "target = 'no_contact'")
     assert [row["option_id"] for row in still_failed] == [options["LIEF-UNKNOWN"]]
+
+
+def test_late_inbound_asks_earlier_and_every_mail_has_english(tmp_path, monkeypatch):
+    rt, _ = _setup(tmp_path, monkeypatch)
+    prompts = []
+
+    def answer(_purpose, prompt):
+        prompts.append(prompt)
+        return {"subject": "状态查询", "body": "请提前交货。", "language": "zh",
+                "commits_money": False}
+
+    rt.llm = fakes.FakeLlm(answer)
+    case = _rows(rt, "cases", "kind = 'gap'")[0]
+    option = {"qty_gain": 20, "cost_eur": 0, "valid_until": None,
+              "data": json.dumps({"po_number": "BE-2001", "asks_earlier": True})}
+    contact = {"name": "Sattel Sued", "contact_name": "Ina", "language": "zh"}
+
+    draft = action.write_draft(rt, "status_request", option, case, contact)
+
+    assert "deliver earlier" in prompts[0]
+    chinese, english = draft.body.split("--- English ---")
+    assert chinese.strip() == "请提前交货。"
+    assert "deliver earlier" in english
+    assert "BE-2001" in english

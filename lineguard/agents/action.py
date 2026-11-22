@@ -46,6 +46,12 @@ _PURPOSE_TEXT = {
     "quote_request": "Please quote the goods listed below and state the earliest arrival time. This request is not an order.",
     "follow_up": "We did not get a reply to our last mail. Please answer today.",
 }
+# Used instead of the purpose text when the known arrival is too late.
+_EARLIER_TEXT = {
+    "status_request": "The goods listed below arrive too late for our deadline (arrival_needed_before). Please check if you can deliver earlier, for example on a faster route, and tell us the earliest possible arrival time. Please also confirm the current status and the quantity.",
+    "pickup": "The goods listed below are ready and not received yet, and we need them earlier. Please arrange the release and the delivery to our site at once, and confirm the earliest arrival time.",
+}
+_ENGLISH_MARK = "--- English ---"
 
 
 def mailer(rt: runtime.Runtime) -> mail_module.Mailer:
@@ -75,12 +81,19 @@ def _facts_for_mail(rt: runtime.Runtime, option: dict[str, Any], case: dict[str,
     }
 
 
+def _purpose_text(purpose: str, facts: dict[str, Any]) -> str:
+    """What the mail must ask for. A late arrival asks for an earlier one."""
+    if facts.get("wanted") == "earlier arrival" and purpose in _EARLIER_TEXT:
+        return _EARLIER_TEXT[purpose]
+    return _PURPOSE_TEXT[purpose]
+
+
 def _template(purpose: str, facts: dict[str, Any], sender: str, hours: float) -> models.EmailDraftOut:
     """Fixed English text for when the LLM is not available."""
     lines = [f"- {key.replace('_', ' ')}: {value}" for key, value in facts.items()
              if value not in (None, "")]
     body = "\n".join([
-        "Dear Sir or Madam,", "", _PURPOSE_TEXT[purpose], "", *lines, "",
+        "Dear Sir or Madam,", "", _purpose_text(purpose, facts), "", *lines, "",
         f"Please reply within {hours:g} hours. The goods are needed for a fixed delivery date.",
         "", "Best regards,", sender])
     return models.EmailDraftOut(
@@ -102,7 +115,7 @@ def write_draft(rt: runtime.Runtime, purpose: str, option: dict[str, Any], case:
                       contact.get("language") or "en", contact.get("language") or "English"))
                   .replace("[REPLY_HOURS]", f"{hours:g}")
                   .replace("[SENDER]", sender).replace("[SUBJECT_PREFIX]", prefix))
-        prompt = (f"Purpose: {purpose}\nWhat the mail must say: {_PURPOSE_TEXT[purpose]}\n"
+        prompt = (f"Purpose: {purpose}\nWhat the mail must say: {_purpose_text(purpose, facts)}\n"
                   f"Supplier: {contact.get('name')}, contact {contact.get('contact_name')}\n"
                   f"Facts: {facts}")
         try:
@@ -112,7 +125,12 @@ def write_draft(rt: runtime.Runtime, purpose: str, option: dict[str, Any], case:
             logger.warning("Draft falls back to the fixed text: %s", error)
     if (contact.get("language") or "en") == "en":
         # An English mail needs no English copy below it.
-        draft.body = draft.body.split("--- English ---")[0].rstrip()
+        draft.body = draft.body.split(_ENGLISH_MARK)[0].rstrip()
+    elif _ENGLISH_MARK not in draft.body:
+        # The team must be able to read every mail. When the LLM left out
+        # the English copy, the fixed English text goes below.
+        english = _template(purpose, facts, sender, hours).body
+        draft.body = f"{draft.body.rstrip()}\n\n{_ENGLISH_MARK}\n{english}"
     if not draft.subject.startswith(prefix):
         draft.subject = f"{prefix} {draft.subject}".strip()
     return draft
