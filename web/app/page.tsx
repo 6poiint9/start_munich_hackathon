@@ -1,13 +1,12 @@
 'use client';
 
-import {useMemo} from 'react';
+import {useEffect, useMemo, useRef} from 'react';
 
 import {CaseDetail} from '../components/case-detail';
 import {CaseList} from '../components/case-list';
 import {Coverage} from '../components/coverage';
 import {PageProvider} from '../components/page-context';
 import type {PageContextValue} from '../components/page-context';
-import {Strips} from '../components/strips';
 import {TopBar} from '../components/top-bar';
 import {useLineguard} from '../lib/use-lineguard';
 import {usePersonId} from '../lib/use-person';
@@ -16,6 +15,7 @@ import {usePersonId} from '../lib/use-person';
 export default function Page() {
   const {state, view, events, selectedId, mock, offline, select, reload} = useLineguard();
   const personId = usePersonId();
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const context = useMemo<PageContextValue | null>(() => {
     if (state === null) {
@@ -31,11 +31,15 @@ export default function Page() {
     };
   }, [state, personId, reload]);
 
+  useEffect(() => {
+    detailRef.current?.scrollTo({top: 0});
+  }, [selectedId]);
+
   if (state === null || context === null) {
     return (
-      <main id="inhalt" className="mx-auto max-w-[1440px] px-4 py-10">
-        <h1 className="text-lead font-semibold">Lineguard</h1>
-        <p role="status" className="mt-2 text-ink-3">
+      <main id="inhalt" className="lg-loading">
+        <h1>Lineguard</h1>
+        <p role="status">
           {offline === null ? 'Lade die Lage …' : 'Keine Verbindung zum Server.'}
         </p>
       </main>
@@ -44,16 +48,28 @@ export default function Page() {
 
   return (
     <PageProvider value={context}>
-      <TopBar state={state} mock={mock} offline={offline} />
-      <main id="inhalt" className="mx-auto max-w-[1440px] space-y-4 px-4 py-4">
-        <h1 className="sr-only">Lineguard: Lage der {state.labels.line}</h1>
-        <Coverage state={state} />
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
-          <CaseList state={state} selectedId={selectedId} onSelect={select} />
-          <CaseDetail view={view} selectedId={selectedId} live={state.mail_mode === 'LIVE'} />
-        </div>
-        <Strips problems={state.problems} events={events} />
-      </main>
+      <div className="lg-shell">
+        <TopBar state={state} mock={mock} offline={offline} />
+        <main id="inhalt" className="lg-main">
+          <h1 className="sr-only">Lineguard: Lage der {state.labels.line}</h1>
+          <Coverage state={state} />
+          <div className="lg-board">
+            <CaseList
+              state={state}
+              events={events}
+              selectedId={selectedId}
+              onSelect={select}
+            />
+            <div className="lg-detail" ref={detailRef}>
+              <CaseDetail
+                view={view}
+                selectedId={selectedId}
+                live={state.mail_mode === 'LIVE'}
+              />
+            </div>
+          </div>
+        </main>
+      </div>
     </PageProvider>
   );
 }

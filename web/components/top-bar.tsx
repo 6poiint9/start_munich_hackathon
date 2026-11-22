@@ -25,51 +25,50 @@ export function TopBar({state, mock, offline}: TopBarProps) {
   ].filter((part) => part !== null);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-rule-2 bg-paper">
-      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lead font-semibold tracking-tight">Lineguard</span>
-          {state.customer !== null && (
-            <span className="text-body text-ink-3">{state.customer}</span>
-          )}
+    <header className="lg-top">
+      <div className="lg-top-row">
+        <div>
+          <p className="lg-brand">
+            Lineguard
+            {state.customer !== null && <span className="lg-customer">{state.customer}</span>}
+          </p>
+          <p className="lg-meta">
+            Stand <span className="lg-id">{formatStamp(state.at, timezone)}</span>
+            {' · '}
+            <span className="lg-id">{formatCount(read)}</span> von{' '}
+            <span className="lg-id">{formatCount(total)}</span> Belegen gelesen
+            {unread.length > 0 && <span className="lg-hot"> · {unread.join(', ')}</span>}
+          </p>
         </div>
-        <p className="text-meta text-ink-3">
-          Stand <span className="num text-ink">{formatStamp(state.at, timezone)}</span>
-        </p>
-        <Tag tone={state.mail_mode === 'LIVE' ? 'work' : 'neutral'}>
-          {mailModeWord(state.mail_mode)}
-        </Tag>
-        {mock && <Tag tone="wait">Demo-Daten</Tag>}
-        <p className="text-meta text-ink-3">
-          <span className="num text-ink">{formatCount(read)}</span> von{' '}
-          <span className="num text-ink">{formatCount(total)}</span> Belegen gelesen
-          {unread.length > 0 && <span className="text-stop"> · {unread.join(', ')}</span>}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button disabled={check.busy} onClick={() => void check.run(api.sync)}>
+        <div className="lg-top-actions">
+          <Tag tone={state.mail_mode === 'LIVE' ? 'work' : 'neutral'}>
+            {mailModeWord(state.mail_mode)}
+          </Tag>
+          {mock && <Tag tone="wait">Demo-Daten</Tag>}
+          <Button variant="primary" disabled={check.busy} onClick={() => void check.run(api.sync)}>
             {check.busy ? 'Prüfe …' : 'Jetzt prüfen'}
           </Button>
           <ErrorNote message={check.error} />
+          <label className="lg-person">
+            Angemeldet als
+            <select
+              value={person?.person_id ?? ''}
+              onChange={(event) => storePersonId(event.target.value)}
+              className="lg-select"
+            >
+              {person === null && <option value="">Person wählen …</option>}
+              {people.map((entry) => (
+                <option key={entry.person_id} value={entry.person_id}>
+                  {entry.name}
+                  {entry.roles.length > 0 && ` · ${entry.roles.map(roleWord).join(', ')}`}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-        <label className="ml-auto flex items-center gap-2 text-meta text-ink-3">
-          Angemeldet als
-          <select
-            value={person?.person_id ?? ''}
-            onChange={(event) => storePersonId(event.target.value)}
-            className="h-8 max-w-72 rounded-ctl border border-rule-2 bg-sheet px-2 text-body text-ink"
-          >
-            {person === null && <option value="">Person wählen …</option>}
-            {people.map((entry) => (
-              <option key={entry.person_id} value={entry.person_id}>
-                {entry.name}
-                {entry.roles.length > 0 && ` · ${entry.roles.map(roleWord).join(', ')}`}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
       {offline !== null && (
-        <p role="status" className="border-t border-stop/30 bg-stop-wash px-4 py-1 text-meta text-stop">
+        <p role="status" className="lg-offline">
           Keine Verbindung zum Server. Die Seite zeigt den letzten Stand und versucht es
           alle 5 Sekunden neu.
         </p>

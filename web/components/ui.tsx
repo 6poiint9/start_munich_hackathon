@@ -14,11 +14,12 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 }
 
 const TONE_CLASSES: Record<Tone, string> = {
-  neutral: 'border-rule-2 bg-well text-ink-2',
-  go: 'border-go/30 bg-go-wash text-go',
-  work: 'border-work/30 bg-work-wash text-stamp-deep',
-  wait: 'border-wait/30 bg-wait-wash text-wait',
-  stop: 'border-stop/30 bg-stop-wash text-stop',
+  neutral:
+    'bg-[color-mix(in_srgb,var(--lg-muted)_28%,white)] text-[var(--lg-text-on-card)]',
+  go: 'bg-[color-mix(in_srgb,var(--lg-ok)_32%,white)] text-[color-mix(in_srgb,var(--lg-ok)_48%,#102018)]',
+  work: 'bg-[color-mix(in_srgb,var(--lg-accent)_26%,white)] text-[color-mix(in_srgb,var(--lg-accent)_58%,#1a1030)]',
+  wait: 'bg-[color-mix(in_srgb,var(--lg-warn)_36%,white)] text-[color-mix(in_srgb,var(--lg-warn)_52%,#241808)]',
+  stop: 'bg-[color-mix(in_srgb,var(--lg-risk)_20%,white)] text-[color-mix(in_srgb,var(--lg-risk)_62%,#1a0810)]',
 };
 
 interface TagProps {
@@ -31,7 +32,7 @@ export function Tag({tone = 'neutral', children}: TagProps) {
   return (
     <span
       className={cx(
-        'inline-flex shrink-0 items-center rounded-tag border px-1.5 text-cap font-medium whitespace-nowrap',
+        'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-meta font-semibold whitespace-nowrap',
         TONE_CLASSES[tone],
       )}
     >
@@ -44,11 +45,11 @@ type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
 const BUTTON_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'border-stamp bg-stamp text-white hover:bg-stamp-deep disabled:border-rule-2 disabled:bg-well disabled:text-ink-4',
+    'border-transparent bg-[var(--lg-accent)] text-[var(--lg-text-on-card)] hover:brightness-105 disabled:bg-[color-mix(in_srgb,var(--lg-muted)_35%,white)] disabled:text-[color-mix(in_srgb,var(--lg-text-on-card)_45%,white)]',
   secondary:
-    'border-rule-2 bg-sheet text-ink hover:bg-well disabled:text-ink-4',
+    'border-[color-mix(in_srgb,var(--lg-text-on-card)_18%,transparent)] bg-white text-[var(--lg-text-on-card)] hover:bg-[color-mix(in_srgb,var(--lg-accent)_14%,white)] disabled:text-[var(--lg-muted)]',
   danger:
-    'border-rule-2 bg-sheet text-stop hover:bg-stop-wash disabled:text-ink-4',
+    'border-transparent bg-[color-mix(in_srgb,var(--lg-risk)_16%,white)] text-[color-mix(in_srgb,var(--lg-risk)_70%,#1a0810)] hover:bg-[color-mix(in_srgb,var(--lg-risk)_26%,white)] disabled:text-[var(--lg-muted)]',
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -67,8 +68,8 @@ export function Button({
     <button
       type={type}
       className={cx(
-        'press inline-flex items-center justify-center rounded-ctl border font-medium whitespace-nowrap',
-        large ? 'h-10 px-5 text-lead' : 'h-8 px-3 text-body',
+        'press inline-flex items-center justify-center rounded-[10px] border font-semibold whitespace-nowrap',
+        large ? 'h-11 px-5 text-lead' : 'h-10 px-3.5 text-body',
         BUTTON_CLASSES[variant],
         className,
       )}
