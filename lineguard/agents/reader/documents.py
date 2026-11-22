@@ -124,13 +124,25 @@ def read(rt: runtime.Runtime, route: Any, file: dict[str, Any], ctx: kinds.Conte
         # Stored by the action agent as mail/<supplier>/<mail id>/<name>.
         hints["supplier_id"] = file["path"].split("/")[1]
     try:
-        text, images = content.extract(file["path"], rt.blob.get(file["blob_key"]))
-        prompt = (
+        extracted = content.extract_parts(file["path"], rt.blob.get(file["blob_key"]))
+        prefix = (
             f"File path: {file['path']}\n"
             f"Known from the path: {hints or 'nothing'}\n"
             f"Expected facts: {', '.join(route.expect) or 'whatever the document states'}\n\n"
-            f"Document:\n{text or '(see the image)'}")
-        document = _ask(rt, "read_document", prompt, images, file["id"])
+            "Document:\n")
+        parts = []
+        for location, text, images in extracted:
+            parts.extend((location, text[start:start + content.MAX_TEXT_CHARS], [])
+                         for start in range(0, len(text), content.MAX_TEXT_CHARS)
+                         if text[start:start + content.MAX_TEXT_CHARS].strip())
+            parts.extend((location, "(see the image)", [image]) for image in images)
+        if not parts:
+            raise content.ContentError("Document contains no text or images")
+        documents = [
+            _ask(rt, "read_document",
+                 f"{prefix}{part}\n\nLocation: {location}. Part {index} of {len(parts)}.",
+                 part_images, file["id"])
+            for index, (location, part, part_images) in enumerate(parts, 1)]
     except (content.ContentError, llm_module.LlmError) as error:
         db.update(rt.conn, "files", rt.ws, file["id"], parse_status="manual",
                   parse_error=str(error))
@@ -140,14 +152,22 @@ def read(rt: runtime.Runtime, route: Any, file: dict[str, Any], ctx: kinds.Conte
     if is_mail:
         # A mail keeps the rank of a mail, whatever it says about itself.
         doc_class = "supplier_mail"
-    elif document.doc_class in rt.pack.source_rank:
-        doc_class = document.doc_class
+    elif documents[0].doc_class in rt.pack.source_rank:
+        doc_class = documents[0].doc_class
     ctx.rank = rt.pack.rank_of(doc_class)
     rt.conn.execute("BEGIN IMMEDIATE")
     try:
         db.update(rt.conn, "files", rt.ws, file["id"], doc_class=doc_class)
-        store(rt, ctx, document, "vision" if images else "llm", hints,
-              trusted_types=frozenset(route.expect))
+        suspicious = next((doc for doc in documents if doc.suspicious), None)
+        for index, (document, (location, _, part_images)) in enumerate(zip(documents, parts, strict=True), 1):
+            if suspicious:
+                document = document.model_copy(update={
+                    "suspicious": True,
+                    "suspicious_reason": suspicious.suspicious_reason})
+            for fact in document.facts:
+                fact.locator = f"{location}, part {index}: {fact.locator or 'document'}"
+            store(rt, ctx, document, "vision" if part_images else "llm", hints,
+                  trusted_types=frozenset(route.expect))
     except Exception:
         rt.conn.execute("ROLLBACK")
         raise
@@ -212,7 +232,7 @@ def store(rt: runtime.Runtime, ctx: kinds.Context, document: models.DocumentOut,
 
 
 def read_notes(rt: runtime.Runtime, event: dict[str, Any]) -> None:
-    """Reads the free text of one table file in one LLM call."""
+    """Reads the free text of one table file in batches."""
     if rt.llm is None:
         return
     file = db.one(rt.conn, rt.ws,
@@ -227,19 +247,22 @@ def read_notes(rt: runtime.Runtime, event: dict[str, Any]) -> None:
         (file["id"],))
     if not notes:
         return
-    listed = "\n".join(
-        f"- [{n['source_locator']}] part={n['component_id'] or '-'} "
-        f"supplier={n['supplier_id'] or '-'} po={n['po_number'] or '-'} "
-        f"ref={n['ref'] or '-'}: {n['value_text']}" for n in notes[:_MAX_NOTES])
-    prompt = (
-        f"File path: {file['path']}\n"
-        "These are remarks from the rows of a table. Each line names the row "
-        "and the ids of that row. Extract facts only from remarks that change "
-        "stock, quantities, dates, revisions or supply. Skip the others. Copy "
-        "the ids of the row into the fact and use the row as locator.\n\n"
-        f"{listed}")
     try:
-        document = _ask(rt, "read_notes", prompt, [], file["id"])
+        documents = []
+        for start in range(0, len(notes), _MAX_NOTES):
+            listed = "\n".join(
+                f"- [{n['source_locator']}] part={n['component_id'] or '-'} "
+                f"supplier={n['supplier_id'] or '-'} po={n['po_number'] or '-'} "
+                f"ref={n['ref'] or '-'}: {n['value_text']}"
+                for n in notes[start:start + _MAX_NOTES])
+            prompt = (
+                f"File path: {file['path']}\n"
+                "These are remarks from the rows of a table. Each line names the row "
+                "and the ids of that row. Extract facts only from remarks that change "
+                "stock, quantities, dates, revisions or supply. Skip the others. Copy "
+                "the ids of the row into the fact and use the row as locator.\n\n"
+                f"{listed}")
+            documents.append(_ask(rt, "read_notes", prompt, [], file["id"]))
     except llm_module.LlmError as error:
         logger.warning("Notes of %s not read: %s", file["path"], error)
         return
@@ -251,7 +274,13 @@ def read_notes(rt: runtime.Runtime, event: dict[str, Any]) -> None:
         rt.conn.execute(
             "DELETE FROM facts WHERE workspace_id = ? AND source_file_id = ? "
             "AND extracted_by = 'llm_note'", (rt.ws, file["id"]))
-        store(rt, ctx, document, "llm_note")
+        suspicious = next((doc for doc in documents if doc.suspicious), None)
+        for document in documents:
+            if suspicious:
+                document = document.model_copy(update={
+                    "suspicious": True,
+                    "suspicious_reason": suspicious.suspicious_reason})
+            store(rt, ctx, document, "llm_note")
     except Exception:
         rt.conn.execute("ROLLBACK")
         raise

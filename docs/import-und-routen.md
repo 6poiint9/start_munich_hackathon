@@ -123,7 +123,7 @@ Spalten wie `note`, `remark` und `notes` enthalten Aussagen, die die Rechnung ä
 | Datei | Weg |
 |---|---|
 | PDF mit Text | `pdftotext`, dann LLM |
-| PDF ohne Text (Scan) | `pdftoppm -png -r 150`, dann Vision je Seite |
+| PDF-Seite mit weniger als 50 Textzeichen | `pdftoppm -png -r 110`, dann Vision je Seite |
 | `jpg`, `png` | Vision |
 | `docx` | Absätze und Tabellen als Text (`python-docx`), dann LLM |
 | `xlsx` ohne passende Route | Blätter als CSV-Text, dann LLM |

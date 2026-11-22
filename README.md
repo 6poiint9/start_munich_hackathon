@@ -48,7 +48,7 @@ The configured LLM receives document text and images. Do not send customer data 
 - `DRY_RUN` does not send mail. Routine mail can run automatically only when the customer pack allows it. Orders and other binding mail need approval.
 - Person selection applies role rules but is not a login. Do not expose the app publicly without access control.
 - The frozen Soony files were opened locally. Their full contents and the complete document-to-action flow were not verified.
-- Document extraction limits text to 14,000 characters and scan PDFs to three pages. Review longer documents separately.
+- The reader splits long text into parts and sends PDF pages with little text to a vision model. Text split across parts and images on text-heavy pages can be missed. Review important evidence.
 - Multi-product state totals and the remaining watcher and shortage rules need further end-to-end verification.
 
 ## How it is built

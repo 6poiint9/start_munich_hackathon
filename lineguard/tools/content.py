@@ -1,7 +1,7 @@
 """Turns a file into text and images for the document reader.
 
-Rules are in docs/import-und-routen.md §5. A PDF with text goes through
-pdftotext. A PDF without text is a scan and goes to the vision model.
+Rules are in docs/import-und-routen.md §5. Each PDF page with little text
+goes to the vision model.
 """
 
 import io
@@ -18,36 +18,51 @@ from lineguard.agents.reader import tables
 MAX_TEXT_CHARS = 14000
 _MIN_PDF_TEXT_CHARS = 50
 _IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
-_MAX_SCAN_PAGES = 3
 
 
 class ContentError(Exception):
     """A file cannot be turned into text or images."""
 
 
-def extract(path: str, data: bytes) -> tuple[str, list[tuple[bytes, str]]]:
-    """Returns the text of a file and its images for the vision model."""
+def extract_parts(path: str, data: bytes) -> list[tuple[str, str, list[tuple[bytes, str]]]]:
+    """Returns text and images with a location for each part of a file."""
     suffix = pathlib.PurePosixPath(path).suffix.lower()
     if suffix in _IMAGE_TYPES:
-        return "", [(data, _IMAGE_TYPES[suffix])]
+        return [("image", "", [(data, _IMAGE_TYPES[suffix])])]
     if suffix == ".pdf":
         text = _pdf_text(data)
-        if len(text.strip()) >= _MIN_PDF_TEXT_CHARS:
-            return text[:MAX_TEXT_CHARS], []
-        return "", _pdf_pages(data)
+        pages = text.split("\f")
+        if pages[-1] == "":
+            pages.pop()
+        if not pages:
+            raise ContentError("PDF contains no pages")
+        scanned = [index for index, page in enumerate(pages, 1)
+                   if len(page.strip()) < _MIN_PDF_TEXT_CHARS]
+        images = dict(zip(scanned, _pdf_pages(data, scanned), strict=True))
+        return [(f"page {number}", "" if number in images else page,
+                 [images[number]] if number in images else [])
+                for number, page in enumerate(pages, 1)]
     if suffix == ".docx":
-        return _docx_text(data)[:MAX_TEXT_CHARS], []
-    if suffix in (".xlsx", ".xls"):
-        return _xlsx_text(data)[:MAX_TEXT_CHARS], []
-    if suffix == ".json":
+        text = _docx_text(data)
+    elif suffix in (".xlsx", ".xls"):
+        text = _xlsx_text(data)
+    elif suffix == ".json":
         try:
             text = json.dumps(json.loads(tables.decode(data)), indent=1, ensure_ascii=False)
         except json.JSONDecodeError:
             text = tables.decode(data)
-        return text[:MAX_TEXT_CHARS], []
-    if suffix in (".txt", ".md", ".csv", ".eml", ""):
-        return tables.decode(data)[:MAX_TEXT_CHARS], []
-    raise ContentError(f"File type '{suffix}' is not supported")
+    elif suffix in (".txt", ".md", ".csv", ".eml", ""):
+        text = tables.decode(data)
+    else:
+        raise ContentError(f"File type '{suffix}' is not supported")
+    return [("document", text, [])]
+
+
+def extract(path: str, data: bytes) -> tuple[str, list[tuple[bytes, str]]]:
+    """Returns all text and images of a file."""
+    parts = extract_parts(path, data)
+    return "\n".join(text for _, text, _ in parts), [
+        image for _, _, images in parts for image in images]
 
 
 def _run(command: list[str], data: bytes | None = None) -> bytes:
@@ -65,14 +80,19 @@ def _pdf_text(data: bytes) -> str:
     return _run(["pdftotext", "-layout", "-", "-"], data).decode("utf-8", "replace")
 
 
-def _pdf_pages(data: bytes) -> list[tuple[bytes, str]]:
+def _pdf_pages(data: bytes, page_numbers: list[int]) -> list[tuple[bytes, str]]:
+    if not page_numbers:
+        return []
     with tempfile.TemporaryDirectory() as folder:
         source = pathlib.Path(folder) / "scan.pdf"
         source.write_bytes(data)
-        _run(["pdftoppm", "-png", "-r", "110", "-l", str(_MAX_SCAN_PAGES),
-              str(source), str(pathlib.Path(folder) / "page")])
-        pages = sorted(pathlib.Path(folder).glob("page*.png"))
-        return [(page.read_bytes(), "image/png") for page in pages]
+        pages = []
+        for number in page_numbers:
+            target = pathlib.Path(folder) / f"page-{number}"
+            _run(["pdftoppm", "-png", "-r", "110", "-f", str(number),
+                  "-l", str(number), "-singlefile", str(source), str(target)])
+            pages.append((target.with_suffix(".png").read_bytes(), "image/png"))
+        return pages
 
 
 def _docx_text(data: bytes) -> str:
