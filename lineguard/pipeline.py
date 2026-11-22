@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 
 Handler = Callable[[runtime.Runtime, dict[str, Any]], Any]
 
+
+def _tick_stock(rt: runtime.Runtime, event: dict[str, Any]) -> None:
+    stock_truth.recompute(rt, event)
+    db.emit(rt.conn, rt.ws, "tick", coalesce_key="tick",
+            partition_key="coverage", priority=3)
+
+
 # group -> event type -> handler. The orchestrator starts a fixed number
 # of workers for each group.
 HANDLERS: dict[str, dict[str, Handler]] = {
@@ -38,6 +45,7 @@ HANDLERS: dict[str, dict[str, Handler]] = {
         "correction.approved": stock_truth.recompute,
         "correction.rejected": stock_truth.recompute,
         "fact.corrected": stock_truth.recompute,
+        "tick.stock": _tick_stock,
     },
 }
 

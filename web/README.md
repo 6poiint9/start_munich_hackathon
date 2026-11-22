@@ -1,6 +1,6 @@
 # Lineguard web
 
-This folder holds the web page of Lineguard. It is one page that shows what can stop a line today, and the decisions, ERP corrections and supplier mails that wait for an approval. The page is written with Next.js 16 (App Router), React 19, Tailwind 4 and TypeScript. The text of the page is German.
+This folder holds the web page of Lineguard. It is one page that shows what can stop a line today, and the decisions, ERP corrections and supplier mails that wait for an approval. The page is written with Next.js 16 (App Router), React 19, Tailwind 4 and TypeScript. The text of the page is English.
 
 ## Start
 
@@ -23,7 +23,7 @@ You need Node.js 20.19 or newer. Run all commands in the folder `web/`.
 
 The backend accepts browser calls only from port 3000 and port 3100. If you use a different port, the browser blocks the calls and the page shows the demo data.
 
-If the backend does not answer on the first load, the page changes to mock mode. In mock mode the page shows the badge "Demo-Daten".
+If the backend does not answer on the first load, the page changes to mock mode. In mock mode the page shows the badge "Demo data".
 
 ## Mock mode
 
@@ -57,12 +57,14 @@ Next.js reads the two variables when it builds the page. Set them before `npm ru
 | Path | Content |
 |---|---|
 | `app/page.tsx` | The page |
-| `app/globals.css` | Design tokens: colors, type scale, fill patterns |
-| `components/` | The parts of the page: top bar, coverage, case list, case detail |
+| `app/globals.css` | Design tokens (colors, type scale, fill patterns) and the styles of the page |
+| `app/fonts/` | The font files with their licenses. The build needs no network |
+| `components/case-detail/panel.css` | The styles of the case detail |
+| `components/` | The parts of the page: top bar, coverage, approvals, case list, case detail |
 | `lib/api.ts` | All calls to the API, and the switch to mock mode |
 | `lib/normalize.ts` | Turns raw JSON into the types of `lib/types.ts`. A missing field becomes `null` |
-| `lib/words.ts` | German words for the codes of the API |
-| `lib/format.ts` | German formats for numbers, money and times |
+| `lib/words.ts` | English words for the codes of the API |
+| `lib/format.ts` | English formats for numbers, money and times |
 | `lib/mock.ts` | The mock backend with the role rules of the API |
 | `mock/demo.ts` | The demo data. `mock/state.json` and `mock/case.json` are its base |
 | `public/mock-files/` | The invented documents that the evidence list opens in mock mode |
@@ -72,5 +74,14 @@ The API contract is in `docs/api.md` in the repository root. The page takes the 
 ## Behavior
 
 - The page loads `/state`, the selected case and the event log every 5 seconds.
-- "Angemeldet als" stores the selected person in the browser. Each write call sends the `person_id` of this person in the header `X-Lineguard-User`.
+- "Acting as" stores the selected person in the browser. Each write call sends the `person_id` of this person in the header `X-Lineguard-User`.
 - A button shows only if the selected person holds a role that the approval needs. If not, the page names the role that must approve.
+- Person selection is not authentication. Restrict write access before a public deployment.
+
+ERP corrections show the proposed data before approval. In `proposal_file` mode, approval saves local JSON and CSV files. It does not update the ERP. A later ERP export must confirm the new quantity. Browser mock mode does not save these files.
+
+## Design
+
+The sidebar links to Overview, Cases, Approvals and Activity. On narrow screens, it becomes an icon rail. Each view has a link in the URL.
+
+The workspace uses light surfaces and a dark blue approval summary. Text and labels state the meaning of status colors. The case detail keeps the source documents and calculations close to the actions. Data that the page loads every 5 seconds does not move.

@@ -5,10 +5,17 @@ import type {ReactNode} from 'react';
 import './globals.css';
 
 // The font files live in the repository, so the build needs no network.
-const inter = localFont({
-  src: './fonts/InterVariable.woff2',
-  variable: '--font-inter',
-  weight: '100 900',
+const hanken = localFont({
+  src: './fonts/HankenGrotesk-Variable-latin.woff2',
+  variable: '--font-hanken',
+  weight: '300 700',
+  display: 'swap',
+});
+
+const newsreader = localFont({
+  src: './fonts/Newsreader-Variable-latin.woff2',
+  variable: '--font-newsreader',
+  weight: '300 500',
   display: 'swap',
 });
 
@@ -25,11 +32,11 @@ const plexMono = localFont({
 export const metadata: Metadata = {
   title: 'Lineguard',
   description:
-    'Eine Seite pro Tag: Was kann die Linie stoppen, und was ist jetzt zu entscheiden.',
+    'One page per day: what can stop the line, and what a person must decide now.',
 };
 
 export const viewport: Viewport = {
-  themeColor: '#120E24',
+  themeColor: '#fdfefc',
 };
 
 interface RootLayoutProps {
@@ -39,13 +46,13 @@ interface RootLayoutProps {
 // Next.js needs the layout as the default export.
 export default function RootLayout({children}: RootLayoutProps) {
   return (
-    <html lang="de" className={`${inter.variable} ${plexMono.variable}`}>
-      <body className="lg-app min-h-dvh">
+    <html lang="en" className={`${hanken.variable} ${newsreader.variable} ${plexMono.variable}`}>
+      <body className="min-h-dvh">
         <a
-          href="#inhalt"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-[10px] focus:bg-[var(--lg-accent)] focus:px-3 focus:py-2 focus:font-semibold focus:text-[var(--lg-text-on-card)]"
+          href="#content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-ctl focus:bg-ink focus:px-3 focus:py-2 focus:font-medium focus:text-paper"
         >
-          Zum Inhalt springen
+          Skip to content
         </a>
         {children}
       </body>

@@ -11,22 +11,23 @@ from lineguard import clock
 from lineguard import config
 from lineguard import db
 from lineguard import runtime
+from lineguard.connectors import erp_writer
 from lineguard.coverage import core
 from lineguard.policy import engine
 
 _PLANNED_STATES = ("approved", "in_execution", "confirmed")
 _FACT_LABELS = {
-    "stock_qty": "Bestand laut ERP", "gr_qty": "Wareneingang gebucht",
-    "po_line": "Bestellposition", "delivery_note_qty": "Menge auf dem Lieferschein",
-    "delivery_note_weight_kg": "Gewicht auf dem Lieferschein",
-    "delivery_note_packages": "Packstücke auf dem Lieferschein",
-    "inspection_result": "Prüfergebnis", "released_rev": "Freigegebene Revision",
-    "artwork_rev": "Revision der Bestellung", "shipment": "Sendung",
-    "planned_inbound": "Zulauf laut Planung", "inbound_qty": "Zulauf mit Beleg",
-    "offer": "Angebot", "not_stocked": "Nicht lagergeführt", "note": "Bemerkung",
-    "counted_qty": "Gezählte Menge", "gr_exception_qty": "Abweichung laut Bemerkung",
-    "validity": "Gültigkeit", "release_status": "Lieferanten-Freigabe",
-    "supplier_condition": "Bedingung des Lieferanten", "demand": "Bedarf", "packed_qty": "Gepackt", "policy_rule": "Regel",
+    "stock_qty": "Stock in the ERP", "gr_qty": "Goods receipt booked",
+    "po_line": "Purchase order line", "delivery_note_qty": "Quantity on the delivery note",
+    "delivery_note_weight_kg": "Weight on the delivery note",
+    "delivery_note_packages": "Packages on the delivery note",
+    "inspection_result": "Inspection result", "released_rev": "Released revision",
+    "artwork_rev": "Revision of the purchase order", "shipment": "Shipment",
+    "planned_inbound": "Planned delivery", "inbound_qty": "Delivery with a document",
+    "offer": "Offer", "not_stocked": "Not kept in stock", "note": "Note",
+    "counted_qty": "Counted quantity", "gr_exception_qty": "Difference stated in the note",
+    "validity": "Validity", "release_status": "Supplier release",
+    "supplier_condition": "Condition of the supplier", "demand": "Demand", "packed_qty": "Packed", "policy_rule": "Rule",
 }
 
 
@@ -73,17 +74,42 @@ def _pending(rt: runtime.Runtime) -> dict[int, dict[str, int]]:
     return counts
 
 
-def _units_by_state(product: core.ProductState, cases: list[dict[str, Any]]) -> dict[str, float]:
+def _units_by_state(product: core.ProductState, computed: core.State,
+                    cases: list[dict[str, Any]],
+                    gaps: dict[int, dict[str, Any]]) -> dict[str, float]:
     secured = min(product.still_to_pack, product.buildable.get("secured", 0.0))
     rest = product.still_to_pack - secured
-    own = [c for c in cases if c["kind"] == "gap" and c["product_id"] == product.product_id
-           and c["state"] not in ("closed", "dismissed")]
-    unclosable = min(rest, sum(
-        (c.get("residual_qty") or c.get("units_at_risk") or 0)
-        for c in own if c["state"] == "unclosable"))
-    planned = 0.0
-    if own and all(c["state"] in _PLANNED_STATES for c in own):
-        planned = rest - unclosable
+    by_component = {item["component_id"]: item for item in cases
+                    if item["kind"] == "gap"
+                    and item["state"] not in ("closed", "dismissed")}
+    lines: dict[tuple[Any, ...], list[float]] = {}
+    for component in computed.components.values():
+        item = by_component.get(component.component_id)
+        if item is None:
+            continue
+        gap = gaps.get(item["id"], {})
+        detail = db.loads(gap.get("detail"), {})
+        residual_parts = detail.get("residual_parts")
+        if residual_parts is None:
+            residual_parts = -component.gap_qty if item["state"] == "unclosable" else 0.0
+        residuals = core.residual_by_line(component.short_lines, residual_parts)
+        for line, residual in zip(component.short_lines, residuals, strict=True):
+            if line["product_id"] != product.product_id:
+                continue
+            key = (line["line_index"],) if "line_index" in line else (
+                line["class"], line["due_at"])
+            values = lines.setdefault(key, [0.0, 0.0, 0.0])
+            missing = line["units_at_risk"]
+            values[0] = max(values[0], missing)
+            values[1] = max(values[1], residual)
+            if item["state"] not in _PLANNED_STATES:
+                values[2] = max(values[2], missing)
+    unclosable = min(rest, sum(values[1] for values in lines.values()))
+    open_short = sum(max(values[2] - values[1], 0.0) for values in lines.values())
+    open_short = min(rest - unclosable, open_short)
+    planned_short = sum(max(values[0] - max(values[1], values[2]), 0.0)
+                        for values in lines.values())
+    planned = min(rest - unclosable - open_short, planned_short)
     return {"secured": secured, "planned": planned,
             "open": max(rest - planned - unclosable, 0.0), "unclosable": unclosable}
 
@@ -106,11 +132,14 @@ def approvals(rt: runtime.Runtime) -> list[dict[str, Any]]:
             (row["recommended_option"],))
         found.append({
             "id": f"decision:{row['id']}", "type": "decision", "object_id": row["id"],
-            "case_id": row["case_id"], "kind": row["option_kind"],
+            "case_id": row["case_id"],
+            "kind": ("unclosable_gap" if row["dedupe_key"].startswith("unclosable:")
+                     else row["option_kind"]),
             "title": row["option_title"] or row["title"], "summary": row["explanation"],
             "needs_roles": db.loads(row["needs_roles"], []),
             "approver_name": row["approver_name"], "deadline": row["deadline"],
-            "cost_eur": row["cost_eur"], "cost_unknown": bool(data.get("cost_unknown")),
+            "cost_eur": row["cost_eur"],
+            "cost_unknown": row["dedupe_key"].startswith("unclosable:") or bool(data.get("cost_unknown")),
             "commits_money": bool(mail and mail["commits_money"]) or bool(row["cost_eur"]),
             "supplier_id": row["supplier_id"], "arrives_at": row["arrives_at"],
             "condition": data.get("condition"), "conflict": data.get("conflict"),
@@ -127,18 +156,22 @@ def approvals(rt: runtime.Runtime) -> list[dict[str, Any]]:
         found.append({
             "id": f"correction:{row['id']}", "type": "correction", "object_id": row["id"],
             "case_id": row["case_id"], "kind": "erp_correction",
-            "title": f"Wareneingang {row['gr_number']} korrigieren",
-            "summary": (f"Gebucht sind {payload.get('booked_qty', 0):g} Stück "
-                        f"{row['component_id']}, belegt sind "
+            "title": f"Correct goods receipt {row['gr_number']}",
+            "summary": (f"The ERP booked {payload.get('booked_qty', 0):g} pieces "
+                        f"{row['component_id']}. The documents show "
                         f"{payload.get('proposed_qty', 0):g}."),
             "needs_roles": [row["approver_role"]],
             "approver_name": person["name"] if person else None, "deadline": None,
             "cost_eur": 0.0, "cost_unknown": False, "commits_money": False,
             "supplier_id": None, "arrives_at": None, "condition": None,
             "conflict": None, "note": None, "after_deadline": False, "email": None,
+            "correction_payload": payload,
+            "erp_writer": (rt.erp_writer or erp_writer.from_pack(
+                rt.pack.erp_writer.mode, rt.ws)).name,
             "created_at": row["created_at"],
         })
-    found.sort(key=lambda item: (item["deadline"] or "9999", item["created_at"] or ""))
+    found.sort(key=lambda item: (item["kind"] != "unclosable_gap",
+                                 item["deadline"] or "9999", item["created_at"] or ""))
     return found
 
 
@@ -175,7 +208,7 @@ def _recent_approvals(rt: runtime.Runtime) -> list[dict[str, Any]]:
         found.append({
             "id": f"correction:{row['id']}", "type": "correction",
             "case_id": row["case_id"],
-            "title": f"Wareneingang {row['gr_number']} korrigieren",
+            "title": f"Correct goods receipt {row['gr_number']}",
             "status": row["status"],
             "decided_by": names.get(row["approved_by"], row["approved_by"]),
             "decided_at": row["approved_at"], "mail_status": None, "mail_to": None})
@@ -224,7 +257,7 @@ def state(rt: runtime.Runtime, at: datetime.datetime | None = None) -> dict[str,
             "rate_per_hour": product.rate_per_hour, "hours_left": product.hours_left,
             "coverage_system": product.coverage.get("system"),
             "coverage_secured": product.coverage.get("secured"),
-            "units": _units_by_state(product, cases),
+            "units": _units_by_state(product, computed, cases, gaps),
             "limiting_component": product.limiting_component,
         })
     return {
@@ -320,6 +353,9 @@ def case(rt: runtime.Runtime, case_id: int) -> dict[str, Any] | None:
             "ORDER BY id", (finding["id"],))
         for correction in corrections:
             correction["payload"] = db.loads(correction["payload"], {})
+            if correction["status"] == "proposed":
+                correction["writer"] = (rt.erp_writer or erp_writer.from_pack(
+                    rt.pack.erp_writer.mode, rt.ws)).name
     options = db.rows(
         rt.conn, rt.ws,
         "SELECT * FROM options WHERE workspace_id = ? AND case_id = ? "
@@ -336,6 +372,8 @@ def case(rt: runtime.Runtime, case_id: int) -> dict[str, Any] | None:
     for decision in decisions:
         decision["options"] = db.loads(decision["options"], [])
         decision["needs_roles"] = db.loads(decision["needs_roles"], [])
+        decision["kind"] = ("unclosable_gap"
+                            if decision["dedupe_key"].startswith("unclosable:") else None)
     return {
         "case": summary,
         "evidence": evidence(rt, sorted(set(int(i) for i in fact_ids if i))),

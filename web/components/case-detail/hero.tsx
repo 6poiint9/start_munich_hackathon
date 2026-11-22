@@ -4,7 +4,7 @@ import {useState} from 'react';
 
 import * as api from '../../lib/api';
 import {formatClock, formatCount, formatSigned} from '../../lib/format';
-import type {CaseView, Correction, Evidence, EvidenceFile} from '../../lib/types';
+import type {CaseView, Correction, EvidenceFile} from '../../lib/types';
 import {
   causeWord,
   checkNameWord,
@@ -15,6 +15,7 @@ import {
   findingStatusWord,
 } from '../../lib/words';
 import {FileDialog} from '../evidence';
+import {ErpPreview, erpEffect} from '../erp-preview';
 import {holdsRole, useAction, usePage} from '../page-context';
 import {ApproverNote, Button, ErrorNote, RejectForm, Tag} from '../ui';
 
@@ -30,14 +31,14 @@ interface OpenFile {
 }
 
 function fileName(file: EvidenceFile): string {
-  return file.path ?? `Datei ${file.id}`;
+  return file.path ?? `File ${file.id}`;
 }
 
-function Metric({label, value, risk = false}: {label: string; value: string; risk?: boolean}) {
+function Figure({label, value, risk = false}: {label: string; value: string; risk?: boolean}) {
   return (
-    <div className={risk ? 'lg-metric lg-on-card is-risk' : 'lg-metric lg-on-card'}>
-      <dt>{label}</dt>
+    <div data-tone={risk ? 'risk' : undefined}>
       <dd>{value}</dd>
+      <dt>{label}</dt>
     </div>
   );
 }
@@ -58,22 +59,21 @@ function DocumentPane({
     }
   };
   return (
-    <div className="lg-doc lg-on-card">
-      <p className="lg-kicker-label">Beleg</p>
+    <figure className="cd-doc">
       {file !== null && kind === 'image' ? (
-        <button type="button" className="lg-scan" onClick={open}>
+        <button type="button" className="cd-scan" onClick={open}>
           {/* The scan comes from the API at run time. next/image cannot size it. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={api.fileUrl(file)} alt={`Beleg ${fileName(file)}`} />
+          <img src={api.fileUrl(file)} alt={`Document ${fileName(file)}`} />
         </button>
       ) : (
-        <button type="button" className="lg-scan lg-plate" onClick={open} disabled={file === null}>
-          <span className="lg-kicker-label">{kind === 'pdf' ? 'PDF' : 'Dokument'}</span>
-          <strong className="lg-id">{note?.ref ?? model.finding.gr_number ?? 'ohne Nummer'}</strong>
+        <button type="button" className="cd-scan cd-plate" onClick={open} disabled={file === null}>
+          <span className="lg-label">{kind === 'pdf' ? 'PDF' : 'Document'}</span>
+          <strong className="lg-id">{note?.ref ?? model.finding.gr_number ?? 'no number'}</strong>
         </button>
       )}
-      {model.handwritten && <p className="lg-chip">Handschriftliche Korrektur</p>}
-      <div className="lg-doc-meta">
+      <figcaption className="cd-doc-meta">
+        {model.handwritten && <span className="lg-hot">Corrected by hand</span>}
         {note?.ref !== null && note?.ref !== undefined && (
           <span>
             Ref. <span className="lg-id">{note.ref}</span>
@@ -81,53 +81,37 @@ function DocumentPane({
         )}
         {model.finding.gr_number !== null && (
           <span>
-            Wareneingang <span className="lg-id">{model.finding.gr_number}</span>
+            Goods receipt <span className="lg-id">{model.finding.gr_number}</span>
           </span>
         )}
         {file !== null && (
-          <button type="button" onClick={open}>
-            <span className="lg-id">{fileName(file)}</span>
-            <span className="sr-only"> öffnen</span>
+          <button type="button" className="lg-link" onClick={open}>
+            Open <span className="lg-id">{fileName(file)}</span>
           </button>
         )}
-      </div>
-    </div>
+      </figcaption>
+    </figure>
   );
 }
 
 function Figures({model}: {model: HeroModel}) {
   const gapRisk = model.gap !== null && model.gap < 0;
-  const showShift =
-    model.booked !== null && model.noteQty !== null && model.booked !== model.noteQty;
   return (
-    <div className="lg-metrics">
-      {showShift && (
-        <p className="lg-shift">
-          <b>{formatCount(model.booked)}</b>
-          <span aria-hidden="true"> → </span>
-          <b>{formatCount(model.noteQty)}</b>
-        </p>
-      )}
-      <dl className="lg-metrics">
-        <Metric label="ERP gebucht" value={formatCount(model.booked)} />
-        <Metric label={model.noteLabel} value={formatCount(model.noteQty)} />
-        <Metric
-          label={model.gapLabel}
-          value={formatSigned(model.gap)}
-          risk={gapRisk}
-        />
+    <div>
+      <dl className="cd-figures">
+        <Figure label="Booked in the ERP" value={formatCount(model.booked)} />
+        <Figure label={model.noteLabel} value={formatCount(model.noteQty)} />
+        <Figure label={model.gapLabel} value={formatSigned(model.gap)} risk={gapRisk} />
       </dl>
       {(model.handwritten || model.finding.cause !== null) && (
-        <p className="lg-hint">
-          {model.handwritten && (
+        <p className="cd-hint">
+          {model.handwritten && model.printed !== null && model.noteQty !== null && (
             <>
-              <span>Handschriftliche Korrektur. </span>
-              {model.printed !== null && model.noteQty !== null && (
-                <>Gedruckt {formatCount(model.printed)}, von Hand {formatCount(model.noteQty)}. </>
-              )}
+              The document prints {formatCount(model.printed)}. A person corrected it by hand to{' '}
+              {formatCount(model.noteQty)}.{' '}
             </>
           )}
-          {model.finding.cause !== null && <>Vermutung: {causeWord(model.finding.cause)}.</>}
+          {model.finding.cause !== null && <>Likely cause: {causeWord(model.finding.cause)}.</>}
         </p>
       )}
     </div>
@@ -142,13 +126,14 @@ function CorrectionRow({correction}: {correction: Correction}) {
     correction.approved_by;
   if (correction.status !== 'proposed') {
     return (
-      <li className="lg-quiet">
+      <li className="cd-quiet">
         <Tag tone={correctionStatusTone(correction.status)}>{correctionStatusWord(correction.status)}</Tag>
-        {approver !== null && <span> von {approver}</span>}
+        {approver !== null && <span> by {approver}</span>}
         {correction.approved_at !== null && (
-          <span className="lg-id"> {formatClock(correction.approved_at, timezone, null)}</span>
+          <span className="num"> {formatClock(correction.approved_at, timezone, null)}</span>
         )}
-        {correction.reject_reason !== null && <span> Grund: {correction.reject_reason}</span>}
+        {correction.reject_reason !== null && <span>. Reason: {correction.reject_reason}</span>}
+        <ErpPreview payload={correction.payload} writer={correction.writer} status={correction.status} />
       </li>
     );
   }
@@ -156,16 +141,18 @@ function CorrectionRow({correction}: {correction: Correction}) {
   const mayCount = holdsRole(person, COUNT_ROLES);
   return (
     <li>
-      <div className="lg-actions">
-        <Tag tone="wait">{correctionStatusWord(correction.status)}</Tag>
+      <p className="cd-quiet">
+        The correction waits for approval. {erpEffect(correction.writer)}
+      </p>
+      <ErpPreview payload={correction.payload} writer={correction.writer} />
+      <div className="cd-actions">
         {mayApprove && (
           <Button
             variant="primary"
-            className="lg-approve-btn"
             disabled={action.busy}
             onClick={() => void action.run((personId) => api.approveCorrection(correction.id, personId))}
           >
-            Korrektur freigeben
+            Approve correction
           </Button>
         )}
         {mayCount && (
@@ -173,12 +160,12 @@ function CorrectionRow({correction}: {correction: Correction}) {
             disabled={action.busy}
             onClick={() => void action.run((personId) => api.requestCount(correction.id, personId))}
           >
-            Zählung anfordern
+            Request stock count
           </Button>
         )}
         {mayApprove && (
           <RejectForm
-            label="Ablehnen"
+            label="Reject"
             busy={action.busy}
             onReject={(reason) =>
               void action.run((personId) => api.rejectCorrection(correction.id, reason, personId))
@@ -199,39 +186,45 @@ function FindingCard({view}: {view: CaseView}) {
   }
   const fails = finding.checks.filter((check) => check.status === 'fail').length;
   return (
-    <section className="lg-finding lg-on-card" aria-label="Buchungsbefund und Korrektur">
-      <div className="lg-finding-head">
-        <p className="lg-kicker-label">Buchungsbefund und Korrektur</p>
+    <section className="cd-block" aria-labelledby="cd-finding">
+      <div className="cd-block-head">
+        <h3 id="cd-finding" className="lg-label">
+          Booking error and correction
+        </h3>
         {finding.status !== null && <Tag>{findingStatusWord(finding.status)}</Tag>}
       </div>
-      <p>
-        Wareneingang <span className="lg-id">{finding.gr_number ?? '–'}</span>:{' '}
-        {formatCount(finding.booked_qty)} gebucht, {formatCount(finding.proposed_qty)} belegt.
+      <p className="cd-lead">
+        Goods receipt <span className="lg-id">{finding.gr_number ?? '–'}</span>: the ERP booked{' '}
+        {formatCount(finding.booked_qty)}. The documents show {formatCount(finding.proposed_qty)}.
       </p>
-      <p className="lg-quiet">
-        Vermutung: {causeWord(finding.cause)}
+      <p className="cd-quiet">
+        Likely cause: {causeWord(finding.cause)}.
         {finding.agreeing_sources !== null &&
-          ` · ${formatCount(finding.agreeing_sources)} Quellen stimmen überein`}
+          ` ${formatCount(finding.agreeing_sources)} sources agree on the documented quantity.`}
       </p>
       {view.corrections.length === 0 ? (
-        <p className="lg-quiet">Noch keine Korrektur vorgeschlagen.</p>
+        <p className="cd-quiet">Lineguard proposed no correction yet.</p>
       ) : (
-        <ul className="lg-action-list">
+        <ul className="cd-list">
           {view.corrections.map((correction) => (
             <CorrectionRow key={correction.id} correction={correction} />
           ))}
         </ul>
       )}
       {finding.checks.length > 0 && (
-        <details className="lg-checks">
+        <details className="cd-fold">
           <summary>
-            <span>Prüfungen</span>
-            <span className="lg-fold-end">
-              <span className="lg-count">{fails > 0 ? `${fails} weichen ab` : finding.checks.length}</span>
-              <i className="lg-chevron" aria-hidden="true" />
+            <span>
+              Checks against other sources
+            </span>
+            <span className="cd-fold-end">
+              <span className="num">
+                {fails > 0 ? `${fails} of ${finding.checks.length} differ` : finding.checks.length}
+              </span>
+              <i className="cd-chevron" aria-hidden="true" />
             </span>
           </summary>
-          <ul className="lg-check-list">
+          <ul className="cd-check-list">
             {finding.checks.map((check) => {
               const value =
                 check.value === null
@@ -242,8 +235,8 @@ function FindingCard({view}: {view: CaseView}) {
               return (
                 <li key={check.name}>
                   <span>{checkNameWord(check.name)}</span>
-                  <span>
-                    {value !== null && <span>{value} </span>}
+                  <span className="cd-check-end">
+                    {value !== null && <span className="num">{value}</span>}
                     <Tag tone={checkStatusTone(check.status)}>{checkStatusWord(check.status)}</Tag>
                   </span>
                 </li>
@@ -256,10 +249,6 @@ function FindingCard({view}: {view: CaseView}) {
   );
 }
 
-function noteKey(note: Evidence | null): string {
-  return note?.ref ?? 'beleg';
-}
-
 /** Document on the left, booked quantity against the note and the gap on the right. */
 export function DiscrepancyHero({view}: {view: CaseView}) {
   const model = heroModel(view);
@@ -269,9 +258,14 @@ export function DiscrepancyHero({view}: {view: CaseView}) {
   }
   return (
     <>
-      <section className="lg-hero" aria-label={`Buchung gegen Beleg ${noteKey(model.note)}`}>
-        <DocumentPane model={model} onOpen={setOpen} />
-        <Figures model={model} />
+      <section className="cd-block" aria-labelledby="cd-hero">
+        <h3 id="cd-hero" className="lg-label">
+          What the ERP booked and what the document shows
+        </h3>
+        <div className="cd-hero">
+          <DocumentPane model={model} onOpen={setOpen} />
+          <Figures model={model} />
+        </div>
       </section>
       <FindingCard view={view} />
       {open !== null && (

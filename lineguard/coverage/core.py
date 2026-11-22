@@ -121,6 +121,22 @@ class State:
     shifts: list[tuple[datetime.datetime, datetime.datetime]]
 
 
+def residual_by_line(short_lines: list[dict[str, Any]], residual_parts: float) -> list[float]:
+    """Assigns uncovered parts to the lowest-priority short lines first."""
+    remaining = max(residual_parts, 0.0)
+    result = [0.0] * len(short_lines)
+    for index in reversed(range(len(short_lines))):
+        line = short_lines[index]
+        missing_parts = max(-line["gap_qty"], 0.0)
+        if missing_parts <= 0:
+            continue
+        parts = min(remaining, missing_parts)
+        qty_per = line.get("qty_per", missing_parts / line["units_at_risk"])
+        result[index] = min(line["units_at_risk"], math.ceil(parts / qty_per))
+        remaining -= parts
+    return result
+
+
 def current_facts(rt: runtime.Runtime, fact_type: str) -> list[dict[str, Any]]:
     """Facts that count: current file version, not removed, not suspect."""
     found = db.rows(
@@ -304,15 +320,15 @@ def _blocks(rt: runtime.Runtime, state: State) -> None:
         if component and delta > 0:
             component.blocks.append(Block(
                 "booking_finding", delta,
-                f"Wareneingang {finding['gr_number']}: {finding['booked_qty']:,.0f} gebucht, "
-                f"{finding['proposed_qty']:,.0f} belegt".replace(",", "."),
+                f"Goods receipt {finding['gr_number']}: {finding['booked_qty']:,.0f} booked, "
+                f"documents show {finding['proposed_qty']:,.0f}",
                 [finding["gr_fact_id"]] if finding["gr_fact_id"] else []))
     for fact in current_facts(rt, "inspection_result"):
         component = state.components.get(fact["component_id"] or "")
         if component and fact["value_text"] == "fail" and fact.get("qty"):
             component.blocks.append(Block(
                 "inspection_failed", fact["qty"],
-                f"Charge {fact.get('batch') or '?'}: Prüfung nicht bestanden",
+                f"Batch {fact.get('batch') or '?'}: inspection failed",
                 [fact["id"]]))
     _revision_blocks(rt, state)
 
@@ -355,8 +371,8 @@ def _revision_blocks(rt: runtime.Runtime, state: State) -> None:
             if rev_fact and rev_fact["rev"] != rule["rev"]:
                 component.blocks.append(Block(
                     "wrong_revision", batch["qty"],
-                    f"Charge {batch['batch']}: Revision {rev_fact['rev']}, "
-                    f"freigegeben ist {rule['rev']}",
+                    f"Batch {batch['batch']}: revision {rev_fact['rev']}, "
+                    f"released is {rule['rev']}",
                     [rev_fact["id"], rule["fact_id"], batch["id"]]))
 
 
@@ -553,7 +569,7 @@ def _allocate(rt: runtime.Runtime, state: State, bom: dict[str, dict[str, float]
             unused[component_id] = list(component.inbound)
             component.need = 0.0
             component.gap_qty = 0.0
-    for line in state.lines:
+    for line_index, line in enumerate(state.lines):
         parts = bom.get(line.product_id, {})
         possible = line.open_units
         shortages = []
@@ -582,11 +598,12 @@ def _allocate(rt: runtime.Runtime, state: State, bom: dict[str, dict[str, float]
                 component.gap_system += gap
                 continue
             component.gap_qty += gap
-            missing_units = -gap / qty_per
+            missing_units = math.ceil(-gap / qty_per)
             component.short_lines.append({
                 "product_id": line.product_id, "class": line.demand_class,
                 "due_at": line.due_at.isoformat(), "gap_qty": gap,
-                "units_at_risk": missing_units,
+                "units_at_risk": missing_units, "line_index": line_index,
+                "qty_per": qty_per,
             })
             useful = _latest_useful_arrival(rt, state, line, missing_units)
             if component.latest_useful_arrival is None or useful < component.latest_useful_arrival:

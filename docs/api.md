@@ -42,7 +42,17 @@ Felder von `cases/{id}`:
 
 ## Schreiben
 
-Jeder schreibende Aufruf braucht den Header `X-Lineguard-User: <person_id>`. Ohne Header antwortet die API mit HTTP 401. Mit einer Person ohne passende Rolle antwortet sie mit HTTP 403 und `detail` „Diese Freigabe braucht die Rolle <rolle>“. Die Oberfläche zeigt nur die Knöpfe, die die gewählte Person klicken darf. Dafür vergleicht sie `people[].roles` mit `needs_roles` oder `approver_role`.
+Jeder schreibende Aufruf braucht den Header `X-Lineguard-User: <person_id>`. Ohne Header antwortet die API mit HTTP 401. Mit einer Person ohne passende Rolle antwortet sie mit HTTP 403 und `detail` „This approval needs the role <rolle>“. Die Oberfläche zeigt nur die Knöpfe, die die gewählte Person klicken darf. Dafür vergleicht sie `people[].roles` mit `needs_roles` oder `approver_role`.
+
+Email approval uses the current role of the linked decision. If an option expires, leaves the plan, or its gap closes, approval returns HTTP 409. No email is sent.
+
+An `unclosable_gap` decision is a shortage alert for the highest role in the escalation chain. The alert does not confirm a later date or cost. Approving it records an acknowledgment. It does not arrange a delivery or send an email. The case stays open while the shortage remains.
+
+When known options do not cover a shortage, Lineguard can prepare a quote request to a known alternative supplier. The request counts no goods as available. It is a draft unless the customer pack allows automatic `quote_request` emails. Lineguard discards an unsent draft when the shortage closes or known options cover it.
+
+The `feed_stale` watcher reports a shipment feed when its latest known update exceeds the configured age. A feed with no known update time does not create this alert.
+
+For an ERP correction, `approvals[]` includes `correction_payload` and `erp_writer`. A case detail includes the same payload and the writer for each correction. `proposal_file` saves a local JSON and CSV proposal. It does not update the ERP. The correction stays `handed_over` until a later ERP export confirms the quantity. If middleware fails, the writer is recorded as `proposal_file`.
 
 | Endpunkt | Body | Wirkung |
 |---|---|---|

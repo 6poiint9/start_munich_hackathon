@@ -43,6 +43,7 @@ _PURPOSE_TEXT = {
     "sort": "A lot failed our incoming inspection. We sort the lot and use the good parts. Please support the sorting and send your corrective action report.",
     "confirm_terms": "We confirm in writing the condition that you named for this order. State it exactly as given in condition_we_confirm, and confirm nothing else. Please release the goods now, ship them on the fastest route, and tell us the arrival time.",
     "status_request": "Please confirm the current status, the quantity and the arrival time of the goods listed below.",
+    "quote_request": "Please quote the goods listed below and state the earliest arrival time. This request is not an order.",
     "follow_up": "We did not get a reply to our last mail. Please answer today.",
 }
 
@@ -61,7 +62,7 @@ def _facts_for_mail(rt: runtime.Runtime, option: dict[str, Any], case: dict[str,
     return {
         "part": case["component_id"], "part_description": component.get("description"),
         "released_revision": component.get("released_rev"),
-        "quantity": data.get("planned_qty") or option["qty_gain"], "po_number": data.get("po_number") or case.get("po_number"),
+        "quantity": data.get("request_qty") or data.get("planned_qty") or option["qty_gain"], "po_number": data.get("po_number") or case.get("po_number"),
         "wanted": "earlier arrival" if data.get("asks_earlier") else None,
         "cost_eur": option["cost_eur"] or None,
         "arrival_needed_before": db.loads(case.get("detail"), {}).get("latest_useful_arrival"),
@@ -155,7 +156,7 @@ def handle_requested(rt: runtime.Runtime, event: dict[str, Any]) -> None:
         db.insert(rt.conn, "actions", rt.ws, case_id=case["id"], option_id=option["id"],
                   type="escalate", kind=purpose, target="no_contact", status="failed",
                   idempotency_key=key, created_at=now,
-                  result={"text": "Kein Kontakt in den Stammdaten für diesen Lieferanten"})
+                  result={"text": "The master data has no contact for this supplier"})
         return
     draft = write_draft(rt, purpose, option, case, contact)
     routine = _is_routine(rt, purpose, option, draft)
@@ -375,6 +376,6 @@ def _follow_up(rt: runtime.Runtime) -> None:
             subject=f"Re: {row['subject']}",
             body=(f"{_PURPOSE_TEXT['follow_up']}\n\n--- Our mail ---\n{row['body']}"),
             language="en", in_reply_to=row["message_id"], po_ref=row["po_ref"],
-            status="approved", routine=1, reason="Nachfrage ohne Antwort",
+            status="approved", routine=1, reason="Follow-up, no reply yet",
             created_at=clock.iso())
         send(rt, email_id, "auto_approve")

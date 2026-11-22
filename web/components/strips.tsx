@@ -30,20 +30,17 @@ export function Strips({problems, events}: StripsProps) {
   return (
     <>
       <section>
-        <h3>
-          Probleme
-          <span className="lg-log-count">{problems.length}</span>
-        </h3>
+        <h3 className="lg-label">Problems · {problems.length}</h3>
         {problems.length === 0 ? (
-          <p className="lg-empty">Kein Problem. Jedes Ereignis wurde verarbeitet.</p>
+          <p className="lg-empty">No problem. Lineguard processed each event.</p>
         ) : (
           <ul>
             {problems.map((problem, index) => (
               <li key={problem.event_id ?? index}>
-                <span className="font-semibold">{eventTypeWord(problem.type)}</span>{' '}
-                <span className="lg-log-error">{problem.error ?? 'Fehler ohne Text'}</span>
+                <span className="font-medium">{eventTypeWord(problem.type)}</span>{' '}
+                <span className="lg-log-error">{problem.error ?? 'Error without a text'}</span>
                 {problem.event_id !== null && (
-                  <span className="lg-id"> Ereignis {problem.event_id}</span>
+                  <span className="lg-id"> event {problem.event_id}</span>
                 )}
               </li>
             ))}
@@ -51,12 +48,9 @@ export function Strips({problems, events}: StripsProps) {
         )}
       </section>
       <section>
-        <h3>
-          Protokoll
-          <span className="lg-log-count">{events.length}</span>
-        </h3>
+        <h3 className="lg-label">Events · {events.length}</h3>
         {events.length === 0 ? (
-          <p className="lg-empty">Noch kein Ereignis.</p>
+          <p className="lg-empty">No event yet.</p>
         ) : (
           <ol>
             {events.map((event) => {
@@ -64,7 +58,7 @@ export function Strips({problems, events}: StripsProps) {
               return (
                 <li key={event.id}>
                   <span className="lg-log-time">{formatClock(event.created_at, timezone, now)}</span>{' '}
-                  <span className="font-semibold">{eventTypeWord(event.type)}</span>{' '}
+                  <span className="font-medium">{eventTypeWord(event.type)}</span>{' '}
                   <Tag tone={eventStatusTone(event.status)}>
                     {eventStatusWord(event.status)}
                   </Tag>

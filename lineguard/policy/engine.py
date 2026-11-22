@@ -17,7 +17,7 @@ class NotAllowedError(Exception):
     """The person does not hold a role that this approval needs."""
 
     def __init__(self, roles: list[str]):
-        super().__init__(f"Diese Freigabe braucht die Rolle {' oder '.join(roles)}")
+        super().__init__(f"This approval needs the role {' or '.join(roles)}")
         self.roles = roles
 
 

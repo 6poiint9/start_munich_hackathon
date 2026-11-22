@@ -10,6 +10,7 @@ import datetime
 from typing import Any
 import zoneinfo
 
+from lineguard import approvals
 from lineguard import clock
 from lineguard import db
 from lineguard import runtime
@@ -19,17 +20,17 @@ from lineguard.policy import engine
 
 _LOCKED = ("approved", "in_execution", "confirmed", "delivered", "failed")
 _ESCALATE_BEFORE = datetime.timedelta(minutes=30)
-_FREE_ACTIONS = ("status_request", "count_request")
-_REQUESTS = ("status_request", "pickup")
+_FREE_ACTIONS = ("status_request", "count_request", "quote_request")
+_REQUESTS = ("status_request", "pickup", "quote_request")
 # Actions that secure goods of an order. They stay on the table when the
 # goods come after the due date, but they close nothing of the gap then.
 _SECURES_ORDER = ("confirm_terms",)
-_OPTION_DATA = ("asks_earlier", "po_number", "condition", "incoterm", "contract_ref",
+_OPTION_DATA = ("asks_earlier", "po_number", "condition", "incoterm", "contract_ref", "request_qty",
                 "shipment_ref", "conflict", "cost_unknown")
 
 
 def _number(value: float) -> str:
-    return f"{value:,.0f}".replace(",", ".")
+    return f"{value:,.0f}"
 
 
 def _iso(moment: datetime.datetime | None) -> str | None:
@@ -38,7 +39,7 @@ def _iso(moment: datetime.datetime | None) -> str | None:
 
 def _local(rt: runtime.Runtime, moment: datetime.datetime) -> str:
     """A moment in the time zone of the site, for text that a person reads."""
-    return moment.astimezone(zoneinfo.ZoneInfo(rt.pack.timezone)).strftime("%d.%m. %H:%M")
+    return moment.astimezone(zoneinfo.ZoneInfo(rt.pack.timezone)).strftime("%d %b %H:%M")
 
 
 def _still_usable(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], arrives: datetime.datetime, qty_per: dict[str, float]) -> float:
@@ -75,29 +76,29 @@ def _upsert_option(rt: runtime.Runtime, state: core.State, case: dict[str, Any],
     after_deadline = False
     if arrives is None and secures:
         after_deadline = True
-        note = "Ankunft ist offen. Die Menge zählt erst mit einem Termin des Lieferanten."
+        note = "The arrival is open. The quantity counts only when the supplier names a date."
         option = {**option, "qty_gain": 0.0}
     elif arrives is None:
-        reason = None if is_request else "Ankunft unbekannt"
+        reason = None if is_request else "Arrival unknown"
     elif is_request:
         reason = None
     elif component.latest_useful_arrival and arrives > component.latest_useful_arrival:
         usable = min(option["qty_gain"], _still_usable(rt, state, gap, arrives, qty_per))
         if usable >= 1:
-            note = (f"Kommt spät: Von {_number(option['qty_gain'])} Stück schaffen es "
-                    f"noch {_number(usable)} durch die Linie")
+            note = (f"Arrives late: of {_number(option['qty_gain'])} pieces, "
+                    f"{_number(usable)} still pass the line in time")
             option = {**option, "qty_gain": float(int(usable)),
-                      "title": f"{option['title']} (spät, {_number(usable)} nutzbar)"}
+                      "title": f"{option['title']} (late, {_number(usable)} usable)"}
         elif secures:
             after_deadline = True
-            note = (f"Kommt nach dem Termin (Ankunft {_local(rt, arrives)}). Sichert "
-                    f"{_number(planned_qty)} Stück für die Lieferung danach, schließt die Lücke nicht.")
+            note = (f"Arrives after the deadline (arrival {_local(rt, arrives)}). Secures "
+                    f"{_number(planned_qty)} pieces for the delivery after it, and does not close the shortage.")
             option = {**option, "qty_gain": 0.0}
         else:
-            reason = (f"Ankunft {clock.iso(arrives)} liegt nach der spätesten "
-                      f"nützlichen Ankunft {clock.iso(component.latest_useful_arrival)}")
+            reason = (f"Arrival {clock.iso(arrives)} is after the latest "
+                      f"useful arrival {clock.iso(component.latest_useful_arrival)}")
     if valid_until and valid_until <= clock.now():
-        reason = "Angebot ist abgelaufen"
+        reason = "The offer expired"
     units = {product: option["qty_gain"] / per for product, per in qty_per.items() if per}
     columns = {
         "case_id": case["id"], "gap_id": gap["id"], "kind": option["kind"],
@@ -180,27 +181,27 @@ def _decide(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any], comp
     if person and roles[0] not in person["roles"]:
         # Nobody holds the role for this category. The fallback role decides.
         roles = [*roles, engine.fallback_role(rt)]
-    label = rt.pack.labels.get("units", "Stück")
-    waiting = f" Jede Stunde Stillstand kostet {_number(rate)} {label}." if rate else ""
+    label = rt.pack.labels.get("units", "units")
+    waiting = f" Each hour of standstill costs {_number(rate)} {label}." if rate else ""
     details = recommended.get("data") or {}
     if isinstance(details, str):
         details = db.loads(details, {})
-    price = (". Die Kosten sind noch offen" if details.get("cost_unknown")
-             else f" für {_number(recommended['cost_eur'])} €")
+    price = (". The cost is not known yet" if details.get("cost_unknown")
+             else f" for €{_number(recommended['cost_eur'])}")
     remarks = [details.get("conflict")]
     if details.get("after_deadline"):
         remarks.append((details.get("note") or "").rstrip("."))
     extra = "".join(f" {text}." for text in remarks if text)
     explanation = (
-        f"Es fehlen {_number(-gap['gap_qty'])} Stück {component.description}. "
-        f"Empfehlung: {recommended['title']}{price}.{extra}"
+        f"{_number(-gap['gap_qty'])} pieces of {component.description} are short. "
+        f"Recommendation: {recommended['title']}{price}.{extra}"
         f"{waiting}")
     key = f"case:{case['id']}"
     existing = db.one(
         rt.conn, rt.ws,
         "SELECT * FROM decisions WHERE workspace_id = ? AND dedupe_key = ?", (key,))
     columns = {
-        "title": f"{component.description}: Lücke schließen",
+        "title": f"{component.description}: close the shortage",
         "options": [o["id"] for o in paid], "recommended_option": recommended["id"],
         "explanation": explanation, "needs_roles": roles, "approver_role": roles[0],
         "approver_name": person["name"] if person else None,
@@ -256,7 +257,8 @@ def _request_actions(rt: runtime.Runtime, case: dict[str, Any], found: list[dict
     for option in found:
         if option.get("action_kind") not in _FREE_ACTIONS or option["status"] != "candidate":
             continue
-        db.update(rt.conn, "options", rt.ws, option["id"], status="in_execution")
+        status = "proposed" if option["action_kind"] == "quote_request" else "in_execution"
+        db.update(rt.conn, "options", rt.ws, option["id"], status=status)
         db.emit(rt.conn, rt.ws, "action.requested",
                 {"option_id": option["id"], "case_id": case["id"]},
                 partition_key=f"case:{case['id']}",
@@ -295,7 +297,13 @@ def _close_one(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], case
     need = -gap["gap_qty"]
     found = []
     for generator in options_module.GENERATORS:
+        if generator is options_module.standard.alt_source:
+            continue
         for option in generator(rt, state, component):
+            found.append(_upsert_option(rt, state, case, gap, option, component, qty_per))
+    _, firm, soft = _plan(rt, need, found)
+    if firm + soft < need:
+        for option in options_module.standard.alt_source(rt, state, component):
             found.append(_upsert_option(rt, state, case, gap, option, component, qty_per))
     _expire_stale(rt, case, {o["id"] for o in found})
     plan, firm, soft = _plan(rt, need, found)
@@ -319,27 +327,63 @@ def _close_one(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], case
         db.emit(rt.conn, rt.ws, "gap.unclosable",
                 {"gap_id": gap["id"], "residual_qty": residual},
                 priority=3, dedupe_key=f"gap.unclosable:{gap['id']}:{residual:g}")
+        _alert_unclosable(rt, gap, case, component, residual)
     elif case["state"] in ("open", "unclosable"):
         new_state = "plan_proposed"
-    units = residual / max(qty_per.values()) if qty_per else residual
+    if residual <= 0:
+        approvals.retire_unclosable_decisions(rt, case["id"])
+    units = sum(core.residual_by_line(component.short_lines, residual))
+    detail = db.loads(gap["detail"], {})
+    detail["residual_parts"] = residual
     db.update(rt.conn, "gaps", rt.ws, gap["id"], residual_qty=units,
-              act_by=_iso(component.latest_useful_arrival))
+              detail=detail, act_by=_iso(component.latest_useful_arrival))
     if new_state != case["state"]:
         db.update(rt.conn, "cases", rt.ws, case["id"], state=new_state,
                   updated_at=clock.iso())
+
+
+def _alert_unclosable(rt: runtime.Runtime, gap: dict[str, Any], case: dict[str, Any],
+                      component: core.ComponentState, residual: float) -> None:
+    key = f"unclosable:{gap['id']}:{residual:g}"
+    approvals.retire_unclosable_decisions(rt, case["id"], keep=key)
+    existing = db.one(rt.conn, rt.ws,
+                      "SELECT id FROM decisions WHERE workspace_id = ? AND dedupe_key = ?",
+                      (key,))
+    if existing:
+        return
+    chain = rt.pack.approval_policy.get("escalation") or []
+    role = chain[-1] if chain else engine.fallback_role(rt)
+    person = engine.resolve_person(rt, role)
+    classes = sorted({line["class"] for line in component.short_lines if line.get("class")})
+    affected = ", ".join(classes) if classes else "unknown"
+    decision_id = db.insert(
+        rt.conn, "decisions", rt.ws, case_id=case["id"], gap_id=gap["id"],
+        title=f"{component.description}: shortage needs attention",
+        options=[], recommended_option=None,
+        explanation=(f"{_number(residual)} pieces remain without a known way to meet the deadline. "
+                     f"Demand classes at risk: {affected}. "
+                     "This alert does not confirm a later delivery date or cost. "
+                     "Acknowledging this alert does not arrange a delivery or send an email."),
+        approver_role=role, approver_name=person["name"] if person else None,
+        needs_roles=[role], policy_ref=rt.pack.approval_policy.get("source"),
+        deadline=clock.iso(), dedupe_key=key, created_at=clock.iso())
+    db.emit(rt.conn, rt.ws, "decision.created", {"decision_id": decision_id},
+            priority=3, dedupe_key=f"decision.created:{decision_id}")
 
 
 def _expire_stale(rt: runtime.Runtime, case: dict[str, Any], current_ids: set[int]) -> None:
     """An option whose facts are gone expires, and its mail draft with it."""
     for row in db.rows(
             rt.conn, rt.ws,
-            "SELECT id, status FROM options WHERE workspace_id = ? AND case_id = ?",
+            "SELECT id, status, kind, dedupe_key FROM options WHERE workspace_id = ? AND case_id = ?",
             (case["id"],)):
         if row["id"] in current_ids or row["status"] in (*_LOCKED, "expired"):
             continue
-        db.update(rt.conn, "options", rt.ws, row["id"], status="expired",
-                  feasible=0, role_in_plan="none",
-                  infeasible_reason="Der Beleg zu dieser Option gilt nicht mehr")
+        changes = {"status": "expired", "feasible": 0, "role_in_plan": "none",
+                   "infeasible_reason": "The document for this option is not valid any more"}
+        if row["kind"] == "alt_source":
+            changes["dedupe_key"] = f"{row['dedupe_key']}:expired:{row['id']}"
+        db.update(rt.conn, "options", rt.ws, row["id"], **changes)
         rt.conn.execute(
             "UPDATE emails SET status = 'discarded' WHERE workspace_id = ? "
             "AND status = 'draft' AND action_id IN (SELECT id FROM actions "

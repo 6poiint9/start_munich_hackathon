@@ -13,50 +13,45 @@ interface TopBarProps {
   state: LineguardState;
   mock: boolean;
   offline: string | null;
+  current: string;
 }
 
-export function TopBar({state, mock, offline}: TopBarProps) {
+export function TopBar({state, mock, offline, current}: TopBarProps) {
   const {person, people, timezone} = usePage();
   const check = useAction();
   const {files_read: read, files_total: total, failed, manual} = state.import;
   const unread = [
-    failed > 0 ? `${formatCount(failed)} fehlgeschlagen` : null,
-    manual > 0 ? `${formatCount(manual)} von Hand zu prüfen` : null,
+    failed > 0 ? `${formatCount(failed)} failed` : null,
+    manual > 0 ? `${formatCount(manual)} need a manual check` : null,
   ].filter((part) => part !== null);
 
   return (
     <header className="lg-top">
-      <div className="lg-top-row">
-        <div>
-          <p className="lg-brand">
-            Lineguard
-            {state.customer !== null && <span className="lg-customer">{state.customer}</span>}
-          </p>
-          <p className="lg-meta">
-            Stand <span className="lg-id">{formatStamp(state.at, timezone)}</span>
-            {' · '}
-            <span className="lg-id">{formatCount(read)}</span> von{' '}
-            <span className="lg-id">{formatCount(total)}</span> Belegen gelesen
-            {unread.length > 0 && <span className="lg-hot"> · {unread.join(', ')}</span>}
-          </p>
-        </div>
+      <div className="lg-wrap lg-top-row">
+        <p className="dashboard-crumb">Workspace <span>/</span> <strong>{current}</strong></p>
+        <p className="lg-top-meta">
+          As of <span className="num">{formatStamp(state.at, timezone)}</span>
+          {' · '}
+          <span className="num">
+            {formatCount(read)} of {formatCount(total)}
+          </span>{' '}
+          documents read
+          {unread.length > 0 && <span className="lg-hot"> · {unread.join(', ')}</span>}
+        </p>
         <div className="lg-top-actions">
-          <Tag tone={state.mail_mode === 'LIVE' ? 'work' : 'neutral'}>
+          {mock && <Tag>Demo data</Tag>}
+          <Tag tone={state.mail_mode === 'LIVE' ? 'go' : 'neutral'}>
             {mailModeWord(state.mail_mode)}
           </Tag>
-          {mock && <Tag tone="wait">Demo-Daten</Tag>}
-          <Button variant="primary" disabled={check.busy} onClick={() => void check.run(api.sync)}>
-            {check.busy ? 'Prüfe …' : 'Jetzt prüfen'}
-          </Button>
-          <ErrorNote message={check.error} />
           <label className="lg-person">
-            Angemeldet als
+            Acting as
             <select
               value={person?.person_id ?? ''}
               onChange={(event) => storePersonId(event.target.value)}
               className="lg-select"
+              data-empty={person === null}
             >
-              {person === null && <option value="">Person wählen …</option>}
+              {person === null && <option value="">Select a person …</option>}
               {people.map((entry) => (
                 <option key={entry.person_id} value={entry.person_id}>
                   {entry.name}
@@ -65,12 +60,16 @@ export function TopBar({state, mock, offline}: TopBarProps) {
               ))}
             </select>
           </label>
+          <Button disabled={check.busy} onClick={() => void check.run(api.sync)}>
+            {check.busy ? 'Checking …' : 'Check sources now'}
+          </Button>
+          <ErrorNote message={check.error} />
         </div>
       </div>
       {offline !== null && (
-        <p role="status" className="lg-offline">
-          Keine Verbindung zum Server. Die Seite zeigt den letzten Stand und versucht es
-          alle 5 Sekunden neu.
+        <p role="status" className="lg-wrap lg-offline">
+          No connection to the server. The page shows the last known state and tries again
+          every 5 seconds.
         </p>
       )}
     </header>

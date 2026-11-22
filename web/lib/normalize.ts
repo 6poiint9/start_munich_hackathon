@@ -239,6 +239,8 @@ function approval(value: unknown): Approval[] {
       note: textOrNull(raw.note),
       after_deadline: flag(raw.after_deadline),
       email: approvalMail(raw.email),
+      correction_payload: isRecord(raw.correction_payload) ? raw.correction_payload : null,
+      erp_writer: textOrNull(raw.erp_writer),
     },
   ];
 }
@@ -439,6 +441,7 @@ function correction(raw: Json, id: number): Correction {
     id,
     status: textOrNull(raw.status) ?? 'proposed',
     payload: record(raw.payload),
+    writer: textOrNull(raw.writer),
     approver_role: textOrNull(raw.approver_role),
     approved_by: textOrNull(raw.approved_by),
     approved_at: textOrNull(raw.approved_at),
@@ -486,6 +489,7 @@ function option(raw: Json, id: number): Option {
 function decision(raw: Json, id: number): Decision {
   return {
     id,
+    kind: textOrNull(raw.kind),
     title: textOrNull(raw.title) ?? `Entscheidung ${id}`,
     explanation: textOrNull(raw.explanation),
     status: textOrNull(raw.status) ?? 'open',

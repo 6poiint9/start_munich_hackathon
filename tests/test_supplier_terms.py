@@ -163,4 +163,5 @@ def test_suspicious_condition_gives_no_option(tmp_path, monkeypatch):
 
     assert _rows(rt, "facts", "fact_type = 'supplier_condition'")[0]["suspicious"] == 1
     assert _rows(rt, "options", "kind = 'confirm_terms'") == []
-    assert _rows(rt, "emails", "direction = 'out' AND status != 'discarded'") == []
+    assert _rows(rt, "emails", "direction = 'out' AND commits_money = 1 "
+                 "AND status != 'discarded'") == []

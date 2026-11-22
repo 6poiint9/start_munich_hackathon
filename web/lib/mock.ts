@@ -3,6 +3,7 @@
  * write, with the same role rules and HTTP statuses as the real API.
  */
 
+import {formatCount} from './format';
 import {createDemo} from '../mock/demo';
 import type {DemoData} from '../mock/demo';
 
@@ -53,7 +54,7 @@ function person(personId: string | null, roles: string[]): Person {
   }
   const role = roles[0];
   if (role !== undefined && !roles.some((name) => found.roles.includes(name))) {
-    throw new ApiError(403, `Diese Freigabe braucht die Rolle ${role}`);
+    throw new ApiError(403, `This approval needs the role ${role}`);
   }
   return found;
 }
@@ -124,6 +125,8 @@ function waitingApprovals(): Approval[] {
     conflict: null,
     note: null,
     after_deadline: false,
+    correction_payload: null,
+    erp_writer: null,
   };
   for (const view of demo().cases.values()) {
     for (const decision of view.decisions) {
@@ -140,7 +143,7 @@ function waitingApprovals(): Approval[] {
         type: 'decision',
         object_id: decision.id,
         case_id: view.case.id,
-        kind: option?.kind ?? null,
+        kind: decision.kind ?? option?.kind ?? null,
         title: option?.title ?? decision.title,
         summary: decision.explanation,
         needs_roles: decisionRoles(decision),
@@ -154,24 +157,33 @@ function waitingApprovals(): Approval[] {
       });
     }
     for (const correction of view.corrections) {
-      if (correction.status !== 'proposed') {
+      const id = `correction:${correction.id}`;
+      // Two demo cases show the same correction. It waits one time.
+      if (correction.status !== 'proposed' || found.some((entry) => entry.id === id)) {
         continue;
       }
+      const booked = correction.payload.booked_qty;
+      const documented = correction.payload.proposed_qty;
       found.push({
         ...empty,
-        id: `correction:${correction.id}`,
+        id,
         type: 'correction',
         object_id: correction.id,
         case_id: view.case.id,
         kind: 'erp_correction',
-        title: `Wareneingang ${view.finding?.gr_number ?? ''} korrigieren`,
-        summary: view.case.title,
+        title: `Correct goods receipt ${view.finding?.gr_number ?? ''}`,
+        summary:
+          typeof booked === 'number' && typeof documented === 'number'
+            ? `The ERP booked ${formatCount(booked)} pieces ${view.case.component_id ?? ''}. The documents show ${formatCount(documented)}.`
+            : view.case.title,
         needs_roles: correction.approver_role === null ? [] : [correction.approver_role],
         approver_name: null,
         deadline: null,
         cost_eur: 0,
         commits_money: false,
         email: null,
+        correction_payload: correction.payload,
+        erp_writer: 'browser_demo',
       });
     }
   }
@@ -205,10 +217,18 @@ export function approveDecision(
   const {view, item} = find<Decision>(id, (entry) => entry.decisions);
   const actor = person(personId, decisionRoles(item));
   requireStatus(item, 'open');
+  if (item.kind === 'unclosable_gap') {
+    item.status = 'approved';
+    item.decided_by = actor.person_id;
+    item.decided_at = stamp();
+    recount(view);
+    log('decision.approved', {decision_id: id});
+    return;
+  }
   const chosenId = optionId ?? item.recommended_option;
   const chosen = view.options.find((entry) => entry.id === chosenId);
   if (chosen === undefined || !chosen.feasible) {
-    throw new ApiError(422, 'Diese Option ist nicht machbar');
+    throw new ApiError(422, 'This option is not possible');
   }
   chosen.status = 'approved';
   item.status = 'approved';
@@ -236,7 +256,7 @@ export function rejectDecision(
   const actor = person(personId, decisionRoles(item));
   requireStatus(item, 'open');
   if (reason.trim() === '') {
-    throw new ApiError(422, 'Der Grund ist Pflicht');
+    throw new ApiError(422, 'The reason is required');
   }
   item.status = 'rejected';
   item.reject_reason = reason.trim();
@@ -298,7 +318,7 @@ export function rejectCorrection(
   person(personId, ['erp_owner']);
   requireStatus(item, 'proposed');
   if (reason.trim() === '') {
-    throw new ApiError(422, 'Der Grund ist Pflicht');
+    throw new ApiError(422, 'The reason is required');
   }
   item.status = 'rejected';
   item.reject_reason = reason.trim();

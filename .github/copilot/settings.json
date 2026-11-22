@@ -1,0 +1,10 @@
+{
+  "disabledSkills": [
+    "clean-code",
+    "secure-coding",
+    "writing-dart-code",
+    "checking-npm-packages",
+    "morning",
+    "writing-swift-code"
+  ]
+}

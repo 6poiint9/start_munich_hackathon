@@ -1,4 +1,7 @@
+import json
+
 from fastapi import testclient
+import httpx
 
 from lineguard import db
 from lineguard import main
@@ -23,7 +26,7 @@ def test_person_without_role_is_403(tmp_path, monkeypatch):
     response = client.post(f"/corrections/{correction_id}/approve",
                            headers={"X-Lineguard-User": "P1"})
     assert response.status_code == 403
-    assert response.json()["detail"] == "Diese Freigabe braucht die Rolle erp_owner"
+    assert response.json()["detail"] == "This approval needs the role erp_owner"
     unknown = client.post(f"/corrections/{correction_id}/approve",
                           headers={"X-Lineguard-User": "nobody"})
     assert unknown.status_code == 403
@@ -46,6 +49,56 @@ def test_erp_owner_approves_once_and_files_are_written(tmp_path, monkeypatch):
     mails = db.rows(rt.conn, rt.ws,
                     "SELECT * FROM emails WHERE workspace_id = ? AND routine = 1")
     assert len(mails) == 1
+
+
+def test_erp_preview_matches_local_proposal_without_updating_erp(tmp_path, monkeypatch):
+    client, rt, correction_id = _client(tmp_path, monkeypatch)
+    correction = db.one(rt.conn, rt.ws,
+                        "SELECT * FROM corrections WHERE workspace_id = ? AND id = ?",
+                        (correction_id,))
+    finding = db.one(rt.conn, rt.ws,
+                     "SELECT * FROM booking_findings WHERE workspace_id = ? AND id = ?",
+                     (correction["finding_id"],))
+    preview = next(a for a in client.get("/state").json()["approvals"]
+                   if a["id"] == f"correction:{correction_id}")
+    detail = client.get(f"/cases/{finding['case_id']}").json()
+    assert preview["erp_writer"] == "proposal_file"
+    assert preview["correction_payload"] == detail["corrections"][0]["payload"]
+    before = db.rows(rt.conn, rt.ws,
+                     "SELECT id, qty FROM facts WHERE workspace_id = ? AND fact_type = 'gr_qty'")
+    response = client.post(f"/corrections/{correction_id}/approve",
+                           headers={"X-Lineguard-User": "P3"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "handed_over"
+    assert response.json()["writer"] == "proposal_file"
+    path = tmp_path / "data" / "demo_bikes" / "out" / "corrections" / f"{correction_id}.json"
+    saved = json.loads(path.read_text())
+    assert all(saved[key] == value for key, value in preview["correction_payload"].items())
+    assert saved["approved_by"] == "P3"
+    assert before == db.rows(rt.conn, rt.ws,
+                             "SELECT id, qty FROM facts WHERE workspace_id = ? AND fact_type = 'gr_qty'")
+    assert client.get(f"/cases/{finding['case_id']}").json()["corrections"][0]["status"] == "handed_over"
+
+
+def test_failed_middleware_shows_local_fallback(tmp_path, monkeypatch):
+    client, rt, correction_id = _client(tmp_path, monkeypatch)
+    rt.pack.erp_writer.mode = "middleware"
+    monkeypatch.setenv("ERP_MW_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("ERP_MW_TOKEN", "test-token")
+
+    def unavailable(*_args, **_kwargs):
+        raise httpx.ConnectError("unavailable")
+
+    monkeypatch.setattr(httpx, "post", unavailable)
+    assert next(a for a in client.get("/state").json()["approvals"]
+                if a["id"] == f"correction:{correction_id}")["erp_writer"] == "middleware"
+    response = client.post(f"/corrections/{correction_id}/approve",
+                           headers={"X-Lineguard-User": "P3"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "handed_over"
+    assert response.json()["writer"] == "proposal_file"
+    assert (tmp_path / "data" / "demo_bikes" / "out" / "corrections"
+            / f"{correction_id}.json").is_file()
 
 
 def test_reject_needs_reason_and_restores_erp_quantity(tmp_path, monkeypatch):

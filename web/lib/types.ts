@@ -139,6 +139,8 @@ export interface Approval {
   note: string | null;
   after_deadline: boolean;
   email: ApprovalMail | null;
+  correction_payload: Record<string, unknown> | null;
+  erp_writer: string | null;
 }
 
 /** A click that happened, with its effect. */
@@ -260,6 +262,7 @@ export interface Correction {
   id: number;
   status: string;
   payload: Record<string, unknown>;
+  writer: string | null;
   approver_role: string | null;
   approved_by: string | null;
   approved_at: string | null;
@@ -288,6 +291,7 @@ export interface Option {
 
 export interface Decision {
   id: number;
+  kind: string | null;
   title: string;
   explanation: string | null;
   status: string;

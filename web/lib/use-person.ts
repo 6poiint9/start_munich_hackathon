@@ -22,7 +22,7 @@ function read(): string | null {
   }
 }
 
-/** Stores the person of "Angemeldet als" in the browser. */
+/** Stores the person of "Signed in as" in the browser. */
 export function storePersonId(personId: string): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, personId);

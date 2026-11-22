@@ -20,7 +20,7 @@ _HELD_STATUS = ("arrived_port", "arrived", "available")
 
 
 def _number(value: float) -> str:
-    return f"{value:,.0f}".replace(",", ".")
+    return f"{value:,.0f}"
 
 
 def _option(component: core.ComponentState, kind: str, source: Any, **values: Any) -> dict[str, Any]:
@@ -55,7 +55,7 @@ def accept_offer(rt: runtime.Runtime, state: core.State, component: core.Compone
         arrives = state.at + datetime.timedelta(hours=hours) if hours else None
         options.append(_option(
             component, "accept_offer", fact["id"],
-            title=f"Angebot annehmen: {_number(fact['qty'])} Stück bestellen",
+            title=f"Accept the offer: order {_number(fact['qty'])} pieces",
             qty_gain=fact["qty"], cost_eur=float(cost),
             arrives_at=arrives,
             confidence=_CONFIDENCE_DOCUMENT, valid_until=valid_until,
@@ -70,7 +70,7 @@ def release_held(rt: runtime.Runtime, state: core.State, component: core.Compone
     del state
     return [
         _option(component, "release_held", inbound.ref,
-                title=f"Abholen: {_number(inbound.qty)} Stück liegen bereit ({inbound.ref})",
+                title=f"Collect: {_number(inbound.qty)} pieces are ready ({inbound.ref})",
                 qty_gain=inbound.qty, arrives_at=inbound.arrives_at,
                 confidence=_CONFIDENCE_STATEMENT, supplier_id=inbound.supplier_id,
                 action_kind="pickup", asks_earlier=True, po_number=inbound.po_number,
@@ -104,13 +104,38 @@ def expedite_inbound(rt: runtime.Runtime, state: core.State, component: core.Com
             continue
         options.append(_option(
             component, "expedite_inbound", subject,
-            title=(f"Nachfragen: {_number(inbound.qty)} Stück "
-                   f"{'früher liefern' if late else 'bestätigen'} ({inbound.ref or inbound.po_number})"),
+            title=(f"Ask the supplier: {'deliver' if late else 'confirm'} {_number(inbound.qty)} pieces"
+                   f"{' earlier' if late else ''} ({inbound.ref or inbound.po_number})"),
             qty_gain=inbound.qty, arrives_at=inbound.arrives_at,
             confidence=_CONFIDENCE_NO_ANSWER, supplier_id=inbound.supplier_id,
             action_kind="status_request", needs_roles=[],
             asks_earlier=late, po_number=inbound.po_number,
             evidence_fact_ids=inbound.fact_ids))
+    return options
+
+
+def alt_source(rt: runtime.Runtime, state: core.State, component: core.ComponentState) -> list[dict[str, Any]]:
+    """Ask known alternative suppliers for a quote without counting unconfirmed goods."""
+    del state
+    active = {fact["supplier_id"] for fact in core.current_facts(rt, "po_line")
+              if fact["component_id"] == component.component_id
+              and str(fact.get("value_text") or "").lower() in
+              ("open", "confirmed", "awaiting_approval", "in_transit")}
+    options = []
+    seen = set()
+    for fact in core.current_facts(rt, "supplier_part"):
+        supplier = fact.get("supplier_id")
+        if (fact["component_id"] != component.component_id or not supplier
+                or supplier in active or supplier in seen):
+            continue
+        seen.add(supplier)
+        options.append(_option(
+            component, "alt_source", supplier,
+            title=f"Request a quote from alternative supplier {supplier}",
+            qty_gain=0.0, request_qty=max(-component.gap_qty, 0.0),
+            arrives_at=None, confidence=_CONFIDENCE_NO_ANSWER,
+            supplier_id=supplier, action_kind="quote_request",
+            needs_roles=[], evidence_fact_ids=[fact["id"]]))
     return options
 
 
@@ -128,8 +153,8 @@ def rework_sort(rt: runtime.Runtime, state: core.State, component: core.Componen
         hours = rt.pack.coverage.default_handling_hours
         options.append(_option(
             component, "rework_sort", fact["id"],
-            title=(f"Charge {fact.get('batch') or ''} sortieren: etwa "
-                   f"{_number(block.qty * good_share)} gute Teile").replace("  ", " "),
+            title=(f"Sort batch {fact.get('batch') or ''}: about "
+                   f"{_number(block.qty * good_share)} good parts").replace("  ", " "),
             qty_gain=float(int(block.qty * good_share)),
             arrives_at=state.at + datetime.timedelta(hours=hours),
             confidence=_CONFIDENCE_STATEMENT, supplier_id=fact.get("supplier_id"),
@@ -183,12 +208,12 @@ def confirm_terms(rt: runtime.Runtime, state: core.State, component: core.Compon
         conflict = None
         if ordered_term and wanted_term and (
                 str(wanted_term).split()[0].upper() != str(ordered_term).split()[0].upper()):
-            conflict = f"Bestellung nennt {ordered_term}, Lieferant verlangt {wanted_term}"
+            conflict = f"The purchase order states {ordered_term}, the supplier demands {wanted_term}"
         transit = data.get("transit_hours_after_release")
         decision_type = "supplier_terms" if engine.has_rule(rt, "supplier_terms") else "purchase_order"
         options.append(_option(
             component, "confirm_terms", po_number,
-            title=f"Bedingung des Lieferanten bestätigen: {_number(qty)} Stück freigeben",
+            title=f"Confirm the condition of the supplier: release {_number(qty)} pieces",
             qty_gain=qty, cost_eur=float(data.get("cost") or 0),
             arrives_at=state.at + datetime.timedelta(hours=float(transit)) if transit else None,
             confidence=_CONFIDENCE_STATEMENT, supplier_id=fact.get("supplier_id"),
@@ -201,5 +226,5 @@ def confirm_terms(rt: runtime.Runtime, state: core.State, component: core.Compon
     return options
 
 
-GENERATORS = (accept_offer, release_held, expedite_inbound, rework_sort,
+GENERATORS = (accept_offer, release_held, expedite_inbound, alt_source, rework_sort,
               confirm_terms)

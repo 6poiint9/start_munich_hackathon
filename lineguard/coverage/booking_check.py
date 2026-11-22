@@ -332,18 +332,18 @@ def check_receipt(ctx: Context, receipt: dict[str, Any]) -> dict[str, Any] | Non
 
 
 def _number(value: float) -> str:
-    return f"{value:,.0f}".replace(",", ".")
+    return f"{value:,.0f}"
 
 
 def _upsert_case(rt: runtime.Runtime, finding: dict[str, Any], in_demand: bool) -> int:
     now = clock.iso()
-    title = (f"Wareneingang {finding['gr_number']}: {_number(finding['booked_qty'])} "
-             f"gebucht, {_number(finding['proposed_qty'])} belegt")
+    title = (f"Goods receipt {finding['gr_number']}: {_number(finding['booked_qty'])} "
+             f"booked, documents show {_number(finding['proposed_qty'])}")
     if finding["cause"] == "unreferenced_receipt":
-        title = f"Wareneingang {finding['gr_number']}: ohne Bestellung oder mit unbekanntem Teil"
+        title = f"Goods receipt {finding['gr_number']}: no purchase order or an unknown part"
     elif not finding["delta_qty"]:
-        title = (f"Wareneingang {finding['gr_number']}: Gewicht und Packstücke "
-                 "passen nicht zur Menge, Zählung nötig")
+        title = (f"Goods receipt {finding['gr_number']}: weight and packages "
+                 "do not fit the quantity, stock count needed")
     key = f"finding::{finding['gr_number']}"
     impact = "deadline_blocker" if in_demand and finding["delta_qty"] else "after_deadline"
     columns = {
@@ -425,7 +425,7 @@ def _propose_correction(rt: runtime.Runtime, finding: dict[str, Any], case_id: i
         return
     rt.conn.execute(
         "UPDATE corrections SET status = 'rejected', reject_reason = "
-        "'Durch neuen Beleg ersetzt' WHERE workspace_id = ? AND finding_id = ? "
+        "'Replaced by a newer document' WHERE workspace_id = ? AND finding_id = ? "
         "AND status = 'proposed'", (rt.ws, finding["id"]))
     correction_id = db.insert(
         rt.conn, "corrections", rt.ws, finding_id=finding["id"], kind="gr_qty",
@@ -450,8 +450,8 @@ def _request_count(rt: runtime.Runtime, finding: dict[str, Any], case_id: int) -
         idempotency_key=key, created_at=clock.iso(),
         result={"component_id": finding["component_id"],
                 "gr_number": finding["gr_number"],
-                "text": f"Bitte Teil {finding['component_id']} aus Wareneingang "
-                        f"{finding['gr_number']} zählen."})
+                "text": f"Please count part {finding['component_id']} from goods receipt "
+                        f"{finding['gr_number']}."})
     db.emit(rt.conn, rt.ws, "action.created",
             {"action_id": action_id, "case_id": case_id},
             dedupe_key=f"action.created:{action_id}")
