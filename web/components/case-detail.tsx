@@ -2,15 +2,16 @@
 
 import {formatCount} from '../lib/format';
 import type {CaseView} from '../lib/types';
-import {actionStatusWord, actionTypeWord, caseKindWord, caseStateTone, caseStateWord, ruleWord} from '../lib/words';
+import {caseKindWord, caseStateTone, caseStateWord, ruleWord} from '../lib/words';
 
-import {Calculation} from './calculation';
-import {CorrectionCard} from './correction-card';
-import {DecisionCard} from './decision-card';
-import {EvidenceList} from './evidence';
-import {Mails} from './mails';
+import {DecisionBlock} from './case-detail/decisions';
+import {Folds} from './case-detail/folds';
+import {DiscrepancyHero} from './case-detail/hero';
+import {Waterfall} from './case-detail/waterfall';
 import {usePage} from './page-context';
-import {Card, Clock, Tag} from './ui';
+import {Clock, Tag} from './ui';
+
+import './case-detail/panel.css';
 
 function Header({view}: {view: CaseView}) {
   const {labels} = usePage();
@@ -23,14 +24,14 @@ function Header({view}: {view: CaseView}) {
   ].filter((part) => part !== null);
   return (
     <header className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="lg-kicker">
         <Tag>{caseKindWord(entry.kind)}</Tag>
         <Tag tone={caseStateTone(entry.state)}>{caseStateWord(entry.state)}</Tag>
-        {entry.rule !== null && <span className="text-meta text-ink-3">Regel: {ruleWord(entry.rule)}</span>}
+        {entry.rule !== null && <span>Regel: {ruleWord(entry.rule)}</span>}
       </div>
-      <h2 className="text-title font-semibold">{entry.title}</h2>
-      <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-2">
-        {ids.length > 0 && <span className="num">{ids.join(' · ')}</span>}
+      <h2 className="lg-title">{entry.title}</h2>
+      <p className="lg-meta">
+        {ids.length > 0 && <span className="lg-id">{ids.join(' · ')}</span>}
         {entry.breaks_at !== null && (
           <span>
             {labels.line} steht ab <Clock iso={entry.breaks_at} distance />
@@ -43,17 +44,40 @@ function Header({view}: {view: CaseView}) {
         )}
         {entry.units_at_risk !== null && entry.units_at_risk > 0 && (
           <span>
-            <span className="num font-medium text-stop">{formatCount(entry.units_at_risk)}</span> {labels.units} in
-            Gefahr
+            <span className="text-stop">{formatCount(entry.units_at_risk)}</span> {labels.units} in Gefahr
           </span>
         )}
         {entry.residual_qty !== null && entry.residual_qty > 0 && (
           <span>
-            Rest nach Plan: <span className="num font-medium text-stop">{formatCount(entry.residual_qty)}</span>
+            Rest nach Plan: <span className="text-stop">{formatCount(entry.residual_qty)}</span>
           </span>
         )}
       </p>
     </header>
+  );
+}
+
+function LooseOptions({view}: {view: CaseView}) {
+  const listed = new Set(view.decisions.flatMap((decision) => decision.options));
+  const loose = view.decisions.length === 0 ? view.options : view.options.filter((option) => !listed.has(option.id));
+  if (view.decisions.length > 0 || loose.length === 0) {
+    return null;
+  }
+  return (
+    <section className="lg-loose lg-on-card">
+      <h3>Geprüfte Optionen</h3>
+      <ul>
+        {loose.map((option) => (
+          <li key={option.id}>
+            <p className="lg-option-title">
+              <span>{option.title}</span>
+              {!option.feasible && <Tag tone="stop">nicht machbar</Tag>}
+            </p>
+            {option.infeasible_reason !== null && <p className="lg-reason">Grund: {option.infeasible_reason}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -66,66 +90,32 @@ interface CaseDetailProps {
 export function CaseDetail({view, selectedId, live}: CaseDetailProps) {
   if (selectedId === null) {
     return (
-      <p className="rounded-sheet border border-rule bg-sheet px-4 py-6 text-ink-3">
-        Kein Fall offen. Heute stoppt nichts die Linie.
-      </p>
+      <p className="lg-panel lg-empty">Kein Fall offen. Heute stoppt nichts die Linie.</p>
     );
   }
   if (view === null || view.case.id !== selectedId) {
     return (
-      <p role="status" className="rounded-sheet border border-rule bg-sheet px-4 py-6 text-ink-3">
+      <p role="status" className="lg-panel lg-empty">
         Lade Fall …
       </p>
     );
   }
   const openDecisions = view.decisions.filter((decision) => decision.status === 'open');
   const closedDecisions = view.decisions.filter((decision) => decision.status !== 'open');
-  const listedOptions = new Set(view.decisions.flatMap((decision) => decision.options));
-  const looseOptions = view.decisions.length === 0 ? view.options : view.options.filter((option) => !listedOptions.has(option.id));
 
   return (
-    <article aria-label={`Fall: ${view.case.title}`} className="space-y-3">
+    <article aria-label={`Fall: ${view.case.title}`} className="lg-panel">
       <Header view={view} />
+      <DiscrepancyHero view={view} />
       {openDecisions.map((decision) => (
-        <DecisionCard key={decision.id} decision={decision} view={view} />
+        <DecisionBlock key={decision.id} decision={decision} view={view} />
       ))}
-      {view.finding !== null && <CorrectionCard finding={view.finding} corrections={view.corrections} />}
-      <Calculation view={view} />
+      <Waterfall view={view} />
       {closedDecisions.map((decision) => (
-        <DecisionCard key={decision.id} decision={decision} view={view} />
+        <DecisionBlock key={decision.id} decision={decision} view={view} />
       ))}
-      {view.decisions.length === 0 && looseOptions.length > 0 && (
-        <Card title="Geprüfte Optionen">
-          <ul className="space-y-2">
-            {looseOptions.map((option) => (
-              <li key={option.id}>
-                <p className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{option.title}</span>
-                  {!option.feasible && <Tag tone="stop">nicht machbar</Tag>}
-                </p>
-                {option.infeasible_reason !== null && (
-                  <p className="text-meta text-ink-3">Grund: {option.infeasible_reason}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-      <Mails view={view} live={live} />
-      {view.actions.length > 0 && (
-        <Card title="Aktionen">
-          <ul className="space-y-1">
-            {view.actions.map((action) => (
-              <li key={action.id} className="flex flex-wrap items-center gap-2">
-                <span>{actionTypeWord(action.type ?? action.kind)}</span>
-                {action.target !== null && <span className="num text-ink-2">{action.target}</span>}
-                <Tag>{actionStatusWord(action.status)}</Tag>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-      <EvidenceList evidence={view.evidence} />
+      <LooseOptions view={view} />
+      <Folds view={view} live={live} />
     </article>
   );
 }
