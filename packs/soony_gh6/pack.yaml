@@ -1,0 +1,38 @@
+workspace: soony_gh6
+customer: Soony
+labels: {deadline: "Launch", product: "Edition", line: "Packlinie", units: "Kopien"}
+timezone: Europe/Berlin
+deadline: 2026-11-22T20:00:00+01:00
+site: DC-HAM
+
+sources:
+  - connector: portal_api
+    base_url_env: PORTAL_BASE
+    token_env: PORTAL_TOKEN
+    poll_seconds: 60
+
+demand: []            # Die Nachfrage steht in den Daten (products.csv, launch_plan_GH6.xlsx)
+priority_order: [preordered, compliance, open_sale]
+
+booking_check:
+  over_tolerance: 0.05
+  weight_ratio_range: [0.5, 2.0]
+  min_agreeing_sources: 2
+coverage:
+  confirm_threshold: 0.8
+  thin_margin: 0.05
+  stale_count_days: 14
+  default_handling_hours: 2     # Annahme, klären mit Felix Brunner
+  horizon_days: 30
+watch:
+  default_notice_days: 14
+  confirm_days: 5
+  silent_after_hours: {sea: 24, air: 12, road: 8}
+  feed_stale_hours: 12
+
+mail: {subject_tag: "[GH6]", sender_env: GMAIL_ADDRESS, sender_name: "Soony Procurement", follow_up_hours: 2}
+erp_writer: {mode: proposal_file}
+auto_approve:
+  action_kinds: [status_request, follow_up, count_request]
+  max_cost_eur: 0
+roles: {erp_owner: "IT & Systems Lead", site_lead: "Site Lead DC-HAM"}

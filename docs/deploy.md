@@ -15,7 +15,7 @@ Diese Datei beschreibt, wie Lineguard auf dem eigenen Server unter `https://line
 
 Zwei Ordner auf dem Server kommen als Volume (Ordner, den der Container vom Server liest) in den Container `api`:
 
-- `packs/`: das Kundenpaket, zum Beispiel `packs/soony_gh6/`. Es ist nicht im Repository.
+- `packs/`: das Kundenpaket, zum Beispiel `packs/soony_gh6/`. Es liegt im Repository.
 - `data/`: Datenbank, gelesene Dateien und Mails. Dieser Ordner bleibt bei einem Neustart erhalten.
 
 ## Voraussetzungen
@@ -38,7 +38,7 @@ Zwei Ordner auf dem Server kommen als Volume (Ordner, den der Container vom Serv
    cd ~/docker && git clone <repo-url> lineguard && cd lineguard
    ```
 
-2. Kopiere das Kundenpaket nach `packs/soony_gh6/`. Es kommt von einem Rechner des Teams, nicht aus Git.
+2. Prüfe, dass das Kundenpaket unter `packs/soony_gh6/` liegt. Es kommt mit dem Repository.
 3. Lege die Datei `.env` an und trage die Werte ein:
 
    ```bash

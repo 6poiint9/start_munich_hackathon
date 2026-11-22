@@ -61,7 +61,6 @@ compile_commands.json
 data/
 *.sqlite
 *.eml
-packs/soony_gh6/
 tests/fixtures/soony/
 tests/golden/soony_gh6/
 

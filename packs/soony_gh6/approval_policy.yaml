@@ -1,0 +1,14 @@
+rules:
+  - {id: po_value, applies_to: purchase_order, tiers: [
+      {lt_eur: 50000, role: buyer}, {lt_eur: 500000, role: category_lead},
+      {lt_eur: 2000000, role: head_of_procurement}, {lt_eur: 5000000, role: cpo},
+      {role: [cpo, cfo]}]}
+  - {id: air_freight, applies_to: air_freight, limit_eur_per_month_per_category: 200000,
+     below: category_lead, above: cpo}
+  - {id: dock_slot, applies_to: inbound_delivery, add_role: site_lead}
+  - {id: supplier_release, applies_to: supplier_release, role: [category_lead, supplier_quality_lead]}
+  - {id: unreleased_part, applies_to: unreleased_part, add_role: quality_compliance}
+  - {id: erp_write, applies_to: erp_correction, role: erp_owner}
+  - {id: vacant_role, fallback_role: head_of_procurement}
+escalation: [buyer, category_lead, head_of_procurement, cpo]
+source: "approval_policy_PP-07.pdf, memo_launch_priorities.docx"

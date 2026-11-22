@@ -45,7 +45,7 @@ Faustregel: Steht der Wert in einer Datei des Kunden, ist er ein Fakt. Ist es ei
 
 Falls es den Code schon unter `app/` gibt, bleibt der Ordnername. Die Regel betrifft Werte, nicht Ordnernamen.
 
-`packs/soony_gh6/` steht in `.gitignore`, solange das Repo öffentlich ist: Das Paket enthält Kundendaten. Das erfundene Paket `demo_bikes` liegt im Repo.
+`packs/soony_gh6/` liegt seit So 22.11. im Repo (Entscheidung des Teams). Das Paket enthält Kundenwerte, aber keine Kundendateien. `data/` bleibt in `.gitignore`. Das erfundene Paket `demo_bikes` liegt ebenfalls im Repo.
 
 ## 2. Begriffe im Kern
 

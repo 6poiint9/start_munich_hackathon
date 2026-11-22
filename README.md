@@ -38,7 +38,7 @@ Copy `.env.example` to `.env`. The file lists each variable. The important ones:
 | `LINEGUARD_NOW` | Fixes the clock for a demo replay or a test |
 | `LINEGUARD_SOURCE_PATH` | Reads the customer files from a local folder and not from the portal |
 
-Customer data is not in this repository. The customer pack `packs/soony_gh6/`, the data folder `data/` and the frozen test snapshot stay on the machines of the team.
+The customer pack `packs/soony_gh6/` is in this repository. It holds the configuration for Soony. The customer files in the data folder `data/` and the frozen test snapshot are not in this repository. They stay on the machines of the team.
 
 The configured LLM receives document text and images. Do not send customer data to an external provider without permission.
 

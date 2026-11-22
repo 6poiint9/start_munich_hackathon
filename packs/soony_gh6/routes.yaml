@@ -1,0 +1,186 @@
+# Erste passende Route gewinnt (docs/import-und-routen.md §2, §7).
+routes:
+  - match: "soony/master/products*.csv"
+    parser: table
+    kind: products
+    doc_class: master_data
+    columns: {name: description, day_one_qty: demand_units}
+  - match: "soony/master/components.csv"
+    parser: table
+    kind: components
+    doc_class: master_data
+    columns: {drawing_rev: released_rev}
+  - match: "soony/master/components_update_*.csv"
+    parser: table
+    kind: master_update
+    doc_class: master_data
+    values: {field: {drawing_rev: released_rev}}
+  - match: "soony/master/bom.csv"
+    parser: table
+    kind: bom
+    doc_class: master_data
+  - match: "soony/master/bom_delta_*.csv"
+    parser: table
+    kind: bom_change
+    doc_class: master_data
+    columns: {effective_from: doc_date, rev_new: rev, parent_id: product_id}
+  - match: "soony/master/routes.csv"
+    parser: table
+    kind: routes
+    doc_class: master_data
+  - match: "soony/master/*.csv"
+    parser: table
+    kind: reference
+    doc_class: master_data
+  - match: "soony/erp/stock_snapshot*.csv"
+    parser: table
+    kind: stock
+    doc_class: erp_stock
+    columns: {snapshot_date: as_of}
+  - match: "soony/erp/stock_update_*.xlsx"
+    parser: report
+    as_of: title
+    doc_class: erp_stock
+    tables:
+      - kind: stock
+        sheet: Components
+        header: [Material, Qty, Last count]
+        columns: {Material: component_id, Qty: qty, Site: site_id, Last count: last_count}
+      - kind: build_status
+        sheet: Finished goods
+        header: [Material, Qty, Packed today]
+        columns: {Material: product_id, Qty: packed}
+  - match: "soony/erp/goods_receipts*.csv"
+    parser: table
+    kind: goods_receipts
+    doc_class: erp_movement
+  - match: "soony/erp/purchase_orders_legacy*.csv"
+    parser: table
+    kind: purchase_orders
+    doc_class: erp_movement
+    columns: {ZZCONF: eta, ZZSTAT: status}
+    normalize: {supplier_id: "SUP-{:04d}"}
+  - match: "soony/erp/purchase_orders*.csv"
+    parser: table
+    kind: purchase_orders
+    doc_class: erp_movement
+    columns: {promised_date: eta}
+  - match: "soony/erp/open_shipments*.csv"
+    parser: table
+    kind: shipments
+    doc_class: erp_movement
+    columns: {shipment_id: ref}
+    split: {po_numbers: "|", material_ids: "|"}
+  - match: "soony/erp/packout_log*.csv"
+    parser: table
+    kind: build_log
+    doc_class: erp_movement
+    columns: {date: doc_date, units_packed: qty}
+  - match: "soony/context/launch_status*.xlsx"
+    parser: report
+    as_of: title
+    doc_class: manual_list
+    tables:
+      - kind: build_status
+        header: [Product, Packed]
+        columns: {Product: product_id, Packed: packed, Still to pack: still_to_pack, Rate per hour: rate_per_hour, Day-one demand: demand_units}
+      - kind: notes
+        header: [Note]
+        columns: {Note: text}
+  - match: "soony/context/launch_plan*.xlsx"
+    parser: report
+    as_of: title
+    doc_class: manual_list
+    tables:
+      - kind: build_status
+        sheet: Editions
+        header: [Product, Packed]
+        columns: {Product: product_id, Packed: packed, Still to pack: still_to_pack, Rate per hour: rate_per_hour, Day-one demand: demand_units, of which pre-orders: demand_preordered}
+      - kind: planned_inbound
+        sheet: Inbound
+        header: [Part, Quantity, ETA]
+        columns: {Part: component_id, Quantity: qty, ETA: eta, Reference: ref, Status: status, Mode: mode, Supplier: supplier_name, Comment: note}
+      - kind: shifts
+        sheet: Shifts
+        header: [Day, Shift]
+        columns: {Day: day, Shift: window}
+      - kind: notes
+        sheet: Notes
+        header: [Note]
+        columns: {Note: text}
+  - match: "soony/logistics/*.xlsx"
+    parser: report
+    doc_class: manual_list
+    tables:
+      - kind: shipments
+        header: [Shipment, Status]
+        columns: {Shipment: ref, Container/AWB: reference, POs: po_numbers, ETA: eta, Status: status, Comment: note, Mode: mode, Supplier: supplier_name}
+    split: {po_numbers: ","}
+  - match: "soony/receiving/**/inspection_report*.pdf"
+    parser: document
+    doc_class: inspection_report
+    priority: 1
+  - match: "soony/receiving/**/*.{jpg,png,jpeg}"
+    parser: vision
+    doc_class: delivery_note
+    expect: [delivery_note_qty, delivery_note_weight_kg, delivery_note_packages]
+  - match: "soony/news/*.json"
+    parser: document
+    doc_class: notice
+    priority: 1
+  - match: "soony/context/org_chart*"
+    parser: document
+    doc_class: org_chart
+    priority: 1
+    expect: [person_role]
+  - match: "soony/context/*"
+    parser: document
+    priority: 1
+  - match: "suppliers/*/profile.csv"
+    parser: table
+    kind: suppliers
+    doc_class: master_data
+    columns: {contact_email: email, preferred_language: language, qualification_status: release_status}
+  - match: "suppliers/*/profile.json"
+    parser: json
+    kind: suppliers
+    doc_class: master_data
+    as_of: exportedAt
+    columns:
+      supplier.supplierId: supplier_id
+      supplier.name: name
+      supplier.contact.name: contact_name
+      supplier.contact.email: email
+      supplier.contact.language: language
+      supplier.qualification.status: release_status
+      supplier.qualification.validUntil: valid_until
+      supplier.status: status
+      supplier.notes: notes
+  - match: "suppliers/*/components.csv"
+    parser: table
+    kind: supplier_parts
+    doc_class: master_data
+    path_fields: {supplier_id: "suppliers/(SUP-\\d+)_"}
+  - match: "suppliers/*/components_delta.csv"
+    parser: table
+    kind: master_update
+    doc_class: master_data
+    columns: {action: field, lead_time_days_new: new, lead_time_days_old: old}
+  - match: "suppliers/*/notices/*.xlsx"
+    parser: document
+    doc_class: price_list
+    priority: 3
+  - match: "suppliers/*/notices/*"
+    parser: document
+    doc_class: notice
+    priority: 1
+    path_fields: {supplier_id: "suppliers/(SUP-\\d+)_"}
+  - match: "suppliers/*/contracts/*"
+    parser: document
+    doc_class: contract
+    priority: 3
+    path_fields: {supplier_id: "suppliers/(SUP-\\d+)_"}
+  - match: "suppliers/*/order_confirmations/*"
+    parser: document
+    path_fields: {supplier_id: "suppliers/(SUP-\\d+)_", po_number: "_(\\d{10})\\.pdf$"}
+default: {parser: document, priority: 3}
