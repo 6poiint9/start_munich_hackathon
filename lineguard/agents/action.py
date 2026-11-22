@@ -22,12 +22,16 @@ from lineguard import db
 from lineguard import llm as llm_module
 from lineguard import models
 from lineguard import runtime
+from lineguard.agents import watcher
 from lineguard.connectors import mail as mail_module
 
 logger = logging.getLogger(__name__)
 _PROMPTS = pathlib.Path(__file__).resolve().parent.parent / "prompts"
 _ATTACHMENT_TYPES = (".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg", ".txt", ".csv")
 _DONE_STATUS = ("sent", "dry_run")
+# Purposes that bind the company. They are never routine, whatever the
+# LLM says about the draft.
+_BINDING = ("order", "confirm_terms")
 _LANGUAGES = {
     "en": "English", "de": "German", "pl": "Polish", "ko": "Korean",
     "zh": "Chinese (Simplified)", "fr": "French", "es": "Spanish",
@@ -37,6 +41,7 @@ _PURPOSE_TEXT = {
     "order": "We accept your offer and order the goods listed below. Please confirm the quantity and the arrival time.",
     "pickup": "The goods listed below are ready and not received yet. Please arrange the release and the delivery to our site, and confirm the arrival time.",
     "sort": "A lot failed our incoming inspection. We sort the lot and use the good parts. Please support the sorting and send your corrective action report.",
+    "confirm_terms": "We confirm in writing the condition that you named for this order. State it exactly as given in condition_we_confirm, and confirm nothing else. Please release the goods now, ship them on the fastest route, and tell us the arrival time.",
     "status_request": "Please confirm the current status, the quantity and the arrival time of the goods listed below.",
     "follow_up": "We did not get a reply to our last mail. Please answer today.",
 }
@@ -56,12 +61,16 @@ def _facts_for_mail(rt: runtime.Runtime, option: dict[str, Any], case: dict[str,
     return {
         "part": case["component_id"], "part_description": component.get("description"),
         "released_revision": component.get("released_rev"),
-        "quantity": option["qty_gain"], "po_number": data.get("po_number") or case.get("po_number"),
+        "quantity": data.get("planned_qty") or option["qty_gain"], "po_number": data.get("po_number") or case.get("po_number"),
         "wanted": "earlier arrival" if data.get("asks_earlier") else None,
         "cost_eur": option["cost_eur"] or None,
         "arrival_needed_before": db.loads(case.get("detail"), {}).get("latest_useful_arrival"),
         "delivery_site": rt.pack.site, "due_date": case.get("due_at"),
         "offer_valid_until": option.get("valid_until"),
+        # The condition is the sentence from the document of the supplier.
+        "condition_we_confirm": data.get("condition"),
+        "delivery_term": data.get("incoterm"), "contract": data.get("contract_ref"),
+        "shipment": data.get("shipment_ref"),
     }
 
 
@@ -75,7 +84,7 @@ def _template(purpose: str, facts: dict[str, Any], sender: str, hours: float) ->
         "", "Best regards,", sender])
     return models.EmailDraftOut(
         subject=f"{purpose.replace('_', ' ').capitalize()}: {facts.get('part') or ''}",
-        body=body, language="en", commits_money=purpose == "order")
+        body=body, language="en", commits_money=purpose in _BINDING)
 
 
 def write_draft(rt: runtime.Runtime, purpose: str, option: dict[str, Any], case: dict[str, Any], contact: dict[str, Any]) -> models.EmailDraftOut:
@@ -100,6 +109,9 @@ def write_draft(rt: runtime.Runtime, purpose: str, option: dict[str, Any], case:
                 rt.conn, rt.ws, purpose="draft_email", system=system, prompt=prompt))
         except (llm_module.LlmError, pydantic.ValidationError) as error:
             logger.warning("Draft falls back to the fixed text: %s", error)
+    if (contact.get("language") or "en") == "en":
+        # An English mail needs no English copy below it.
+        draft.body = draft.body.split("--- English ---")[0].rstrip()
     if not draft.subject.startswith(prefix):
         draft.subject = f"{prefix} {draft.subject}".strip()
     return draft
@@ -107,7 +119,8 @@ def write_draft(rt: runtime.Runtime, purpose: str, option: dict[str, Any], case:
 
 def _is_routine(rt: runtime.Runtime, purpose: str, option: dict[str, Any], draft: models.EmailDraftOut) -> bool:
     allowed = rt.pack.auto_approve
-    return (purpose in allowed.action_kinds and not draft.commits_money
+    return (purpose in allowed.action_kinds and purpose not in _BINDING
+            and not draft.commits_money
             and (option["cost_eur"] or 0) <= allowed.max_cost_eur)
 
 
@@ -128,6 +141,10 @@ def handle_requested(rt: runtime.Runtime, event: dict[str, Any]) -> None:
             rt.conn, rt.ws,
             "SELECT id FROM actions WHERE workspace_id = ? AND idempotency_key = ?",
             (key,)):
+        return
+    po_number = db.loads(option["data"], {}).get("po_number")
+    if purpose == "status_request" and _already_asked(
+            rt, case["id"], option["supplier_id"], po_number):
         return
     contact = db.one(
         rt.conn, rt.ws,
@@ -155,13 +172,38 @@ def handle_requested(rt: runtime.Runtime, event: dict[str, Any]) -> None:
         language=contact["language"] or draft.language,
         po_ref=db.loads(option["data"], {}).get("po_number"),
         status="approved" if routine else "draft", routine=routine,
-        commits_money=draft.commits_money or purpose == "order",
+        commits_money=draft.commits_money or purpose in _BINDING,
+        in_reply_to=_last_reply(rt, contact["email"]) if purpose == "confirm_terms" else None,
         reason=option["title"], created_at=now)
     db.update(rt.conn, "options", rt.ws, option["id"], action_id=action_id)
     db.emit(rt.conn, rt.ws, "email.drafted", {"email_id": email_id}, priority=3,
             dedupe_key=f"email.drafted:{email_id}")
     if routine or payload.get("approved_by"):
         send(rt, email_id, payload.get("approved_by") or "auto_approve")
+
+
+def _already_asked(rt: runtime.Runtime, case_id: int, supplier_id: str | None, po_number: str | None) -> bool:
+    """True when a status question for this order went out for the case.
+
+    Each reply can name the goods with a new reference. The question stays
+    one per order. A silent supplier gets the reminder, not a new question.
+    """
+    return db.one(
+        rt.conn, rt.ws,
+        "SELECT e.id FROM emails e JOIN actions a ON a.id = e.action_id "
+        "WHERE e.workspace_id = ? AND e.case_id = ? AND e.direction = 'out' "
+        "AND a.kind = 'status_request' AND a.target = ? AND e.po_ref IS ? "
+        "AND e.status IN ('approved', 'sent', 'dry_run')",
+        (case_id, supplier_id, po_number)) is not None
+
+
+def _last_reply(rt: runtime.Runtime, address: str) -> str | None:
+    """The newest mail of this sender, so the answer stays in its thread."""
+    row = db.one(
+        rt.conn, rt.ws,
+        "SELECT message_id FROM emails WHERE workspace_id = ? AND direction = 'in' "
+        "AND LOWER(from_addr) = ? ORDER BY id DESC", (address.lower(),))
+    return row["message_id"] if row else None
 
 
 def send(rt: runtime.Runtime, email_id: int, approved_by: str, subject: str | None = None, body: str | None = None) -> dict[str, Any]:
@@ -280,7 +322,7 @@ def receive(rt: runtime.Runtime, message: email.message.EmailMessage) -> int | N
         created_at=clock.iso())
     asked = (f"--- Our question ---\nSubject: {question['subject']}\n{question['body']}\n\n"
              if question else "")
-    folder = f"mail/{supplier}/{email_id}"
+    folder = f"{watcher.MAIL_FOLDER}/{supplier}/{email_id}"
     document = (f"{asked}--- Reply from {sender} ({supplier}) ---\n"
                 f"Subject: {message.get('Subject', '')}\n{text}")
     _store_file(rt, f"{folder}/body.txt", document.encode("utf-8"))

@@ -8,6 +8,9 @@
 
 import type {
   Action,
+  Approval,
+  ApprovalDone,
+  ApprovalMail,
   Block,
   CaseDetail,
   CaseSummary,
@@ -192,6 +195,75 @@ function problem(value: unknown): Problem {
 }
 
 /** Reads the answer of `GET /state`. */
+function approvalMail(value: unknown): ApprovalMail | null {
+  const raw = record(value);
+  const id = numberOrNull(raw.id);
+  if (id === null) {
+    return null;
+  }
+  return {
+    id,
+    to_addr: textOrNull(raw.to_addr),
+    subject: textOrNull(raw.subject),
+    body: textOrNull(raw.body),
+    language: textOrNull(raw.language),
+  };
+}
+
+function approval(value: unknown): Approval[] {
+  const raw = record(value);
+  const id = textOrNull(raw.id);
+  const objectId = numberOrNull(raw.object_id);
+  if (id === null || objectId === null) {
+    return [];
+  }
+  return [
+    {
+      id,
+      type: textOrNull(raw.type) ?? 'decision',
+      object_id: objectId,
+      case_id: numberOrNull(raw.case_id),
+      kind: textOrNull(raw.kind),
+      title: textOrNull(raw.title) ?? 'Freigabe',
+      summary: textOrNull(raw.summary),
+      needs_roles: textList(raw.needs_roles),
+      approver_name: textOrNull(raw.approver_name),
+      deadline: textOrNull(raw.deadline),
+      cost_eur: numberOrNull(raw.cost_eur),
+      cost_unknown: flag(raw.cost_unknown),
+      commits_money: flag(raw.commits_money),
+      supplier_id: textOrNull(raw.supplier_id),
+      arrives_at: textOrNull(raw.arrives_at),
+      condition: textOrNull(raw.condition),
+      conflict: textOrNull(raw.conflict),
+      note: textOrNull(raw.note),
+      after_deadline: flag(raw.after_deadline),
+      email: approvalMail(raw.email),
+    },
+  ];
+}
+
+function approvalDone(value: unknown): ApprovalDone[] {
+  const raw = record(value);
+  const id = textOrNull(raw.id);
+  if (id === null) {
+    return [];
+  }
+  return [
+    {
+      id,
+      type: textOrNull(raw.type) ?? 'decision',
+      case_id: numberOrNull(raw.case_id),
+      title: textOrNull(raw.title) ?? 'Freigabe',
+      status: textOrNull(raw.status) ?? 'approved',
+      decided_by: textOrNull(raw.decided_by),
+      decided_at: textOrNull(raw.decided_at),
+      mail_status: textOrNull(raw.mail_status),
+      mail_to: textOrNull(raw.mail_to),
+    },
+  ];
+}
+
 export function normalizeState(value: unknown): LineguardState {
   const raw = record(value);
   const labels = record(raw.labels);
@@ -233,6 +305,8 @@ export function normalizeState(value: unknown): LineguardState {
       findings: numberOrZero(review.findings),
     },
     problems: list(raw.problems).map(problem),
+    approvals: list(raw.approvals).flatMap(approval),
+    approvals_done: list(raw.approvals_done).flatMap(approvalDone),
     people: list(raw.people).flatMap(person),
     mail_mode: textOrNull(raw.mail_mode) ?? 'DRY_RUN',
   };

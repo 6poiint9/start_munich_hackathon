@@ -63,6 +63,11 @@ def route(rt: runtime.Runtime, decision_type: str, value_eur: float = 0.0, flags
     return list(dict.fromkeys(roles))
 
 
+def has_rule(rt: runtime.Runtime, applies_to: str) -> bool:
+    """True when the pack holds a rule for this decision type."""
+    return bool(_rules(rt, applies_to))
+
+
 def fallback_role(rt: runtime.Runtime) -> str:
     """The role that decides when a rule or a person is missing."""
     for rule in rt.pack.approval_policy.get("rules", []):

@@ -14,6 +14,11 @@ from lineguard.connectors import source as source_module
 TABLE_PARSERS = ("table", "report", "json")
 
 
+# Replies of suppliers come from the inbox, not from the source. The
+# source does not list them, and that must not remove them.
+MAIL_FOLDER = "mail"
+
+
 def sync(rt: runtime.Runtime, source: source_module.SourceConnector) -> list[dict[str, Any]]:
     """Compares the source with the known files and stores the changes.
 
@@ -24,7 +29,8 @@ def sync(rt: runtime.Runtime, source: source_module.SourceConnector) -> list[dic
     current = {
         row["path"]: row for row in db.rows(
             rt.conn, rt.ws,
-            "SELECT * FROM files WHERE workspace_id = ? AND is_current = 1")
+            "SELECT * FROM files WHERE workspace_id = ? AND is_current = 1 "
+            "AND path NOT LIKE ?", (f"{MAIL_FOLDER}/%",))
     }
     changes = []
     for remote in source.list():

@@ -56,3 +56,29 @@ Jeder schreibende Aufruf braucht den Header `X-Lineguard-User: <person_id>`. Ohn
 | `POST /sync` | — | Quelle jetzt prüfen. Antwort `{"changes": [...]}` |
 
 Jede Antwort auf einen schreibenden Aufruf ist das geänderte Objekt.
+
+## Waiting approvals in `/state`
+
+`GET /state` holds two more lists. The page shows them in the section "Freigaben".
+
+`approvals[]` lists each step that the agent prepared and that waits for a person. The most urgent entry comes first.
+
+| Field | Meaning |
+|---|---|
+| `id` | Unique text, for example `decision:4` or `correction:1` |
+| `type` | `decision` or `correction` |
+| `object_id` | The id for `POST /decisions/{id}/approve` or `POST /corrections/{id}/approve` |
+| `case_id` | The case with the evidence |
+| `kind` | Kind of the recommended option, for example `confirm_terms`, or `erp_correction` |
+| `title`, `summary` | Text for the person |
+| `needs_roles`, `approver_name` | Who can approve |
+| `deadline`, `arrives_at` | Time limits as ISO text |
+| `cost_eur`, `cost_unknown` | The cost. `cost_unknown` is true when the document names no cost |
+| `commits_money` | True when the approval binds the company |
+| `condition`, `conflict` | The term that the supplier demands, and the difference to the order |
+| `note`, `after_deadline` | Remark of the plan. `after_deadline` is true when the goods arrive after the due date |
+| `email` | The mail draft that goes out with the approval (`id`, `to_addr`, `subject`, `body`, `language`), or `null` |
+
+`approvals_done[]` lists the last five clicks with `title`, `status`, `decided_by`, `decided_at`, `mail_status` and `mail_to`.
+
+The option kind `confirm_terms` comes from the fact type `supplier_condition`. A supplier holds finished goods until the customer confirms a term in writing. The mail for this option always needs an approval. A rule with `applies_to: supplier_terms` in `approval_policy.yaml` names the role. Without that rule, the rule for `purchase_order` applies with the value of the order line.

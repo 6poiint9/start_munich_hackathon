@@ -26,7 +26,7 @@ _FACT_LABELS = {
     "offer": "Angebot", "not_stocked": "Nicht lagergeführt", "note": "Bemerkung",
     "counted_qty": "Gezählte Menge", "gr_exception_qty": "Abweichung laut Bemerkung",
     "validity": "Gültigkeit", "release_status": "Lieferanten-Freigabe",
-    "demand": "Bedarf", "packed_qty": "Gepackt", "policy_rule": "Regel",
+    "supplier_condition": "Bedingung des Lieferanten", "demand": "Bedarf", "packed_qty": "Gepackt", "policy_rule": "Regel",
 }
 
 
@@ -86,6 +86,101 @@ def _units_by_state(product: core.ProductState, cases: list[dict[str, Any]]) -> 
         planned = rest - unclosable
     return {"secured": secured, "planned": planned,
             "open": max(rest - planned - unclosable, 0.0), "unclosable": unclosable}
+
+
+def approvals(rt: runtime.Runtime) -> list[dict[str, Any]]:
+    """Everything that waits for a click of a person, most urgent first."""
+    found = []
+    for row in db.rows(
+            rt.conn, rt.ws,
+            "SELECT d.*, o.kind AS option_kind, o.title AS option_title, "
+            "o.cost_eur, o.supplier_id, o.data AS option_data, o.arrives_at "
+            "FROM decisions d LEFT JOIN options o ON o.id = d.recommended_option "
+            "WHERE d.workspace_id = ? AND d.status = 'open'"):
+        data = db.loads(row["option_data"], {})
+        mail = db.one(
+            rt.conn, rt.ws,
+            "SELECT e.id, e.to_addr, e.subject, e.body, e.language, e.commits_money "
+            "FROM emails e JOIN actions a ON a.id = e.action_id "
+            "WHERE e.workspace_id = ? AND a.option_id = ? AND e.status = 'draft'",
+            (row["recommended_option"],))
+        found.append({
+            "id": f"decision:{row['id']}", "type": "decision", "object_id": row["id"],
+            "case_id": row["case_id"], "kind": row["option_kind"],
+            "title": row["option_title"] or row["title"], "summary": row["explanation"],
+            "needs_roles": db.loads(row["needs_roles"], []),
+            "approver_name": row["approver_name"], "deadline": row["deadline"],
+            "cost_eur": row["cost_eur"], "cost_unknown": bool(data.get("cost_unknown")),
+            "commits_money": bool(mail and mail["commits_money"]) or bool(row["cost_eur"]),
+            "supplier_id": row["supplier_id"], "arrives_at": row["arrives_at"],
+            "condition": data.get("condition"), "conflict": data.get("conflict"),
+            "note": data.get("note"), "after_deadline": bool(data.get("after_deadline")),
+            "email": mail, "created_at": row["created_at"],
+        })
+    for row in db.rows(
+            rt.conn, rt.ws,
+            "SELECT c.*, f.case_id, f.gr_number, f.component_id FROM corrections c "
+            "JOIN booking_findings f ON f.id = c.finding_id "
+            "WHERE c.workspace_id = ? AND c.status = 'proposed'"):
+        payload = db.loads(row["payload"], {})
+        person = engine.resolve_person(rt, row["approver_role"])
+        found.append({
+            "id": f"correction:{row['id']}", "type": "correction", "object_id": row["id"],
+            "case_id": row["case_id"], "kind": "erp_correction",
+            "title": f"Wareneingang {row['gr_number']} korrigieren",
+            "summary": (f"Gebucht sind {payload.get('booked_qty', 0):g} Stück "
+                        f"{row['component_id']}, belegt sind "
+                        f"{payload.get('proposed_qty', 0):g}."),
+            "needs_roles": [row["approver_role"]],
+            "approver_name": person["name"] if person else None, "deadline": None,
+            "cost_eur": 0.0, "cost_unknown": False, "commits_money": False,
+            "supplier_id": None, "arrives_at": None, "condition": None,
+            "conflict": None, "note": None, "after_deadline": False, "email": None,
+            "created_at": row["created_at"],
+        })
+    found.sort(key=lambda item: (item["deadline"] or "9999", item["created_at"] or ""))
+    return found
+
+
+def _recent_approvals(rt: runtime.Runtime) -> list[dict[str, Any]]:
+    """The last clicks with their effect, newest first."""
+    names = {key: value["name"] for key, value in engine.persons(rt).items()}
+    found = []
+    for row in db.rows(
+            rt.conn, rt.ws,
+            "SELECT d.id, d.case_id, d.status, d.decided_by, d.decided_at, "
+            "o.title AS option_title, d.title, "
+            "(SELECT e.status FROM emails e JOIN actions a ON a.id = e.action_id "
+            " WHERE a.option_id = d.recommended_option AND e.direction = 'out' "
+            " ORDER BY e.id DESC LIMIT 1) AS mail_status, "
+            "(SELECT e.to_addr FROM emails e JOIN actions a ON a.id = e.action_id "
+            " WHERE a.option_id = d.recommended_option AND e.direction = 'out' "
+            " ORDER BY e.id DESC LIMIT 1) AS mail_to "
+            "FROM decisions d LEFT JOIN options o ON o.id = d.recommended_option "
+            "WHERE d.workspace_id = ? AND d.status IN ('approved', 'rejected') "
+            "ORDER BY d.decided_at DESC LIMIT 5"):
+        found.append({
+            "id": f"decision:{row['id']}", "type": "decision", "case_id": row["case_id"],
+            "title": row["option_title"] or row["title"], "status": row["status"],
+            "decided_by": names.get(row["decided_by"], row["decided_by"]),
+            "decided_at": row["decided_at"], "mail_status": row["mail_status"],
+            "mail_to": row["mail_to"]})
+    for row in db.rows(
+            rt.conn, rt.ws,
+            "SELECT c.id, c.status, c.approved_by, c.approved_at, f.case_id, "
+            "f.gr_number FROM corrections c JOIN booking_findings f "
+            "ON f.id = c.finding_id WHERE c.workspace_id = ? "
+            "AND c.status != 'proposed' AND c.approved_at IS NOT NULL "
+            "ORDER BY c.approved_at DESC LIMIT 5"):
+        found.append({
+            "id": f"correction:{row['id']}", "type": "correction",
+            "case_id": row["case_id"],
+            "title": f"Wareneingang {row['gr_number']} korrigieren",
+            "status": row["status"],
+            "decided_by": names.get(row["approved_by"], row["approved_by"]),
+            "decided_at": row["approved_at"], "mail_status": None, "mail_to": None})
+    found.sort(key=lambda item: item["decided_at"] or "", reverse=True)
+    return found[:5]
 
 
 def state(rt: runtime.Runtime, at: datetime.datetime | None = None) -> dict[str, Any]:
@@ -156,6 +251,7 @@ def state(rt: runtime.Runtime, at: datetime.datetime | None = None) -> dict[str,
             rt.conn, rt.ws,
             "SELECT id AS event_id, type, error FROM events "
             "WHERE workspace_id = ? AND status = 'failed' ORDER BY id DESC LIMIT 20"),
+        "approvals": approvals(rt), "approvals_done": _recent_approvals(rt),
         "people": people(rt),
         "mail_mode": config.get("MAIL_MODE", "DRY_RUN"),
     }

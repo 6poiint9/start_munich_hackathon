@@ -2,6 +2,7 @@
 
 import {useEffect, useMemo, useRef} from 'react';
 
+import {Approvals} from '../components/approvals';
 import {CaseDetail} from '../components/case-detail';
 import {CaseList} from '../components/case-list';
 import {Coverage} from '../components/coverage';
@@ -53,6 +54,7 @@ export default function Page() {
         <main id="inhalt" className="lg-main">
           <h1 className="sr-only">Lineguard: Lage der {state.labels.line}</h1>
           <Coverage state={state} />
+          <Approvals state={state} selectedId={selectedId} onSelect={select} />
           <div className="lg-board">
             <CaseList
               state={state}

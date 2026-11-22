@@ -7,7 +7,7 @@ import pydantic
 FACT_TYPES = (
     "delivery_note_qty", "delivery_note_weight_kg", "delivery_note_packages",
     "inspection_result", "shipped_qty", "inbound_qty", "artwork_rev", "offer",
-    "order_confirmed",
+    "order_confirmed", "supplier_condition",
     "not_stocked", "gr_exception_qty", "release_status", "validity",
     "person_role", "policy_rule", "counted_qty", "info",
 )

@@ -8,6 +8,7 @@ need. A gap without enough options is reported openly as `unclosable`
 
 import datetime
 from typing import Any
+import zoneinfo
 
 from lineguard import clock
 from lineguard import db
@@ -20,6 +21,11 @@ _LOCKED = ("approved", "in_execution", "confirmed", "delivered", "failed")
 _ESCALATE_BEFORE = datetime.timedelta(minutes=30)
 _FREE_ACTIONS = ("status_request", "count_request")
 _REQUESTS = ("status_request", "pickup")
+# Actions that secure goods of an order. They stay on the table when the
+# goods come after the due date, but they close nothing of the gap then.
+_SECURES_ORDER = ("confirm_terms",)
+_OPTION_DATA = ("asks_earlier", "po_number", "condition", "incoterm", "contract_ref",
+                "shipment_ref", "conflict", "cost_unknown")
 
 
 def _number(value: float) -> str:
@@ -28,6 +34,11 @@ def _number(value: float) -> str:
 
 def _iso(moment: datetime.datetime | None) -> str | None:
     return clock.iso(moment) if moment else None
+
+
+def _local(rt: runtime.Runtime, moment: datetime.datetime) -> str:
+    """A moment in the time zone of the site, for text that a person reads."""
+    return moment.astimezone(zoneinfo.ZoneInfo(rt.pack.timezone)).strftime("%d.%m. %H:%M")
 
 
 def _still_usable(rt: runtime.Runtime, state: core.State, gap: dict[str, Any], arrives: datetime.datetime, qty_per: dict[str, float]) -> float:
@@ -59,7 +70,14 @@ def _upsert_option(rt: runtime.Runtime, state: core.State, case: dict[str, Any],
     # A question or a pickup asks for the arrival that is needed. Its
     # current date is the thing to change, so it does not rule the option out.
     is_request = option.get("action_kind") in _REQUESTS
-    if arrives is None:
+    secures = option.get("action_kind") in _SECURES_ORDER
+    planned_qty = option["qty_gain"]
+    after_deadline = False
+    if arrives is None and secures:
+        after_deadline = True
+        note = "Ankunft ist offen. Die Menge zählt erst mit einem Termin des Lieferanten."
+        option = {**option, "qty_gain": 0.0}
+    elif arrives is None:
         reason = None if is_request else "Ankunft unbekannt"
     elif is_request:
         reason = None
@@ -70,6 +88,11 @@ def _upsert_option(rt: runtime.Runtime, state: core.State, case: dict[str, Any],
                     f"noch {_number(usable)} durch die Linie")
             option = {**option, "qty_gain": float(int(usable)),
                       "title": f"{option['title']} (spät, {_number(usable)} nutzbar)"}
+        elif secures:
+            after_deadline = True
+            note = (f"Kommt nach dem Termin (Ankunft {_local(rt, arrives)}). Sichert "
+                    f"{_number(planned_qty)} Stück für die Lieferung danach, schließt die Lücke nicht.")
+            option = {**option, "qty_gain": 0.0}
         else:
             reason = (f"Ankunft {clock.iso(arrives)} liegt nach der spätesten "
                       f"nützlichen Ankunft {clock.iso(component.latest_useful_arrival)}")
@@ -86,8 +109,9 @@ def _upsert_option(rt: runtime.Runtime, state: core.State, case: dict[str, Any],
         "evidence_fact_ids": option["evidence_fact_ids"],
         "supplier_id": option.get("supplier_id"),
         "action_kind": option.get("action_kind"),
-        "data": {"note": note, **{k: v for k, v in option.items()
-                                  if k in ("asks_earlier", "po_number")}},
+        "data": {"note": note, "after_deadline": after_deadline,
+                 "planned_qty": planned_qty,
+                 **{k: v for k, v in option.items() if k in _OPTION_DATA}},
         "updated_at": clock.iso(),
     }
     existing = db.one(
@@ -158,9 +182,18 @@ def _decide(rt: runtime.Runtime, case: dict[str, Any], gap: dict[str, Any], comp
         roles = [*roles, engine.fallback_role(rt)]
     label = rt.pack.labels.get("units", "Stück")
     waiting = f" Jede Stunde Stillstand kostet {_number(rate)} {label}." if rate else ""
+    details = recommended.get("data") or {}
+    if isinstance(details, str):
+        details = db.loads(details, {})
+    price = (". Die Kosten sind noch offen" if details.get("cost_unknown")
+             else f" für {_number(recommended['cost_eur'])} €")
+    remarks = [details.get("conflict")]
+    if details.get("after_deadline"):
+        remarks.append((details.get("note") or "").rstrip("."))
+    extra = "".join(f" {text}." for text in remarks if text)
     explanation = (
         f"Es fehlen {_number(-gap['gap_qty'])} Stück {component.description}. "
-        f"Empfehlung: {recommended['title']} für {_number(recommended['cost_eur'])} €."
+        f"Empfehlung: {recommended['title']}{price}.{extra}"
         f"{waiting}")
     key = f"case:{case['id']}"
     existing = db.one(

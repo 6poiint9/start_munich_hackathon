@@ -82,18 +82,28 @@ def release_held(rt: runtime.Runtime, state: core.State, component: core.Compone
 
 def expedite_inbound(rt: runtime.Runtime, state: core.State, component: core.ComponentState) -> list[dict[str, Any]]:
     """Inbound without proof or too late: ask for an earlier arrival."""
-    del rt
+    held = {fact["po_number"] for fact in _conditions(rt, component).values()}
     options = []
+    asked = set()
     for inbound in component.inbound:
         if inbound.secured or (inbound.status or "") in _HELD_STATUS:
             continue
+        # One question per order. An order that waits for a confirmation
+        # needs that confirmation, not another question.
+        subject = inbound.po_number or inbound.ref
+        if subject in asked or inbound.po_number in held:
+            continue
         late = (component.latest_useful_arrival is not None and inbound.arrives_at is not None
                 and inbound.arrives_at > component.latest_useful_arrival)
+        if late and inbound.rank <= 2:
+            # A document of the supplier names this late date already.
+            continue
+        asked.add(subject)
         horizon = state.next_due + datetime.timedelta(days=7) if state.next_due else None
         if horizon and inbound.arrives_at and inbound.arrives_at > horizon:
             continue
         options.append(_option(
-            component, "expedite_inbound", inbound.ref or inbound.po_number,
+            component, "expedite_inbound", subject,
             title=(f"Nachfragen: {_number(inbound.qty)} Stück "
                    f"{'früher liefern' if late else 'bestätigen'} ({inbound.ref or inbound.po_number})"),
             qty_gain=inbound.qty, arrives_at=inbound.arrives_at,
@@ -129,4 +139,67 @@ def rework_sort(rt: runtime.Runtime, state: core.State, component: core.Componen
     return options
 
 
-GENERATORS = (accept_offer, release_held, expedite_inbound, rework_sort)
+def _conditions(rt: runtime.Runtime, component: core.ComponentState) -> dict[str, dict[str, Any]]:
+    """The newest condition of a supplier per order, for one part."""
+    newest: dict[str, dict[str, Any]] = {}
+    for fact in core.current_facts(rt, "supplier_condition"):
+        if fact["component_id"] == component.component_id and fact.get("po_number"):
+            newest[fact["po_number"]] = fact
+    return newest
+
+
+def _condition_text(fact: dict[str, Any]) -> str | None:
+    """The one term to confirm, built from the fields of the fact.
+
+    A reply often names two ways in one sentence. The mail must confirm
+    one of them, so a delivery term is written from its own fields.
+    """
+    data = fact["data"]
+    if data.get("condition_kind") == "incoterm_confirmation" and data.get("incoterm"):
+        contract = f" under {data['contract_ref']}" if data.get("contract_ref") else ""
+        return f"Delivery {data['incoterm']}{contract}"
+    return fact.get("value_text")
+
+
+def confirm_terms(rt: runtime.Runtime, state: core.State, component: core.ComponentState) -> list[dict[str, Any]]:
+    """Goods are ready, and the supplier waits for a written confirmation.
+
+    The confirmation changes who pays and who carries the risk, so it is
+    never a routine mail. The option names the difference to the order.
+    """
+    options = []
+    orders = [f for f in core.current_facts(rt, "po_line")
+              if f["component_id"] == component.component_id]
+    for po_number, fact in _conditions(rt, component).items():
+        data = fact["data"]
+        lines = [f for f in orders if f["po_number"] == po_number]
+        qty = fact.get("qty") or sum(f["qty"] or 0 for f in lines)
+        if not qty:
+            continue
+        value = sum((f["qty"] or 0) * (f["value_num"] or 0) for f in lines)
+        ordered_term = next((f["data"].get("incoterm") for f in lines
+                             if f["data"].get("incoterm")), None)
+        wanted_term = data.get("incoterm")
+        conflict = None
+        if ordered_term and wanted_term and (
+                str(wanted_term).split()[0].upper() != str(ordered_term).split()[0].upper()):
+            conflict = f"Bestellung nennt {ordered_term}, Lieferant verlangt {wanted_term}"
+        transit = data.get("transit_hours_after_release")
+        decision_type = "supplier_terms" if engine.has_rule(rt, "supplier_terms") else "purchase_order"
+        options.append(_option(
+            component, "confirm_terms", po_number,
+            title=f"Bedingung des Lieferanten bestätigen: {_number(qty)} Stück freigeben",
+            qty_gain=qty, cost_eur=float(data.get("cost") or 0),
+            arrives_at=state.at + datetime.timedelta(hours=float(transit)) if transit else None,
+            confidence=_CONFIDENCE_STATEMENT, supplier_id=fact.get("supplier_id"),
+            action_kind="confirm_terms", po_number=po_number,
+            needs_roles=engine.route(rt, decision_type, value),
+            condition=_condition_text(fact), incoterm=wanted_term,
+            contract_ref=data.get("contract_ref"), shipment_ref=fact.get("ref"),
+            conflict=conflict, cost_unknown=not data.get("cost"),
+            evidence_fact_ids=[fact["id"], *(f["id"] for f in lines)]))
+    return options
+
+
+GENERATORS = (accept_offer, release_held, expedite_inbound, rework_sort,
+              confirm_terms)

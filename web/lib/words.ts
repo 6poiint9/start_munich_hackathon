@@ -183,6 +183,8 @@ const OPTION_KINDS = new Map([
   ['rework_sort', 'Gesperrte Charge sortieren'],
   ['reallocate', 'Umverteilen'],
   ['count_request', 'Zählung im Lager'],
+  ['confirm_terms', 'Bedingung des Lieferanten bestätigen'],
+  ['erp_correction', 'Korrektur im ERP'],
   ['alt_source', 'Anderer Lieferant'],
   ['add_capacity', 'Mehr Kapazität'],
   ['deliver_after_deadline', 'Nach der Frist liefern'],

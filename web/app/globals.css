@@ -368,7 +368,7 @@ dialog.file-panel::backdrop {
 
 .lg-main {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
   padding: 12px 16px 16px;
@@ -565,6 +565,111 @@ dialog.file-panel::backdrop {
   display: inline;
   color: var(--lg-text-on-card);
   font-weight: 600;
+}
+
+.lg-approvals {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--lg-warn) 45%, transparent);
+  border-radius: var(--lg-radius);
+  background: var(--lg-surface);
+}
+
+.lg-approvals[data-empty='true'] {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.lg-approvals-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 14px;
+}
+
+.lg-approvals-head h2 {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.lg-approvals-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--lg-warn);
+  color: #241808;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.lg-approvals-sub {
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+}
+
+.lg-approvals-toggle {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.lg-approvals-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 10px;
+  max-height: 38dvh;
+  padding: 0 12px 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.lg-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--lg-card);
+  color: var(--lg-text-on-card);
+  color-scheme: light;
+}
+
+.lg-approval[data-selected='true'] {
+  box-shadow: 0 0 0 2px var(--lg-accent);
+}
+
+.lg-approval-mail {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.lg-approvals-done {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 0 14px 10px;
+  color: var(--lg-muted);
+  font-size: 0.8125rem;
+}
+
+.lg-approvals-done strong {
+  color: var(--lg-ok);
+  font-weight: 650;
 }
 
 .lg-board {

@@ -13,6 +13,7 @@ import type {
   Decision,
   Email,
   EmailEdit,
+  Approval,
   LineguardState,
   LogEvent,
   Person,
@@ -112,8 +113,73 @@ function decisionRoles(decision: Decision): string[] {
   return decision.approver_role === null ? [] : [decision.approver_role];
 }
 
+/** The demo has no server, so the waiting approvals come from its cases. */
+function waitingApprovals(): Approval[] {
+  const found: Approval[] = [];
+  const empty = {
+    cost_unknown: false,
+    supplier_id: null,
+    arrives_at: null,
+    condition: null,
+    conflict: null,
+    note: null,
+    after_deadline: false,
+  };
+  for (const view of demo().cases.values()) {
+    for (const decision of view.decisions) {
+      if (decision.status !== 'open') {
+        continue;
+      }
+      const option = view.options.find(
+        (entry) => entry.id === decision.recommended_option,
+      );
+      const draft = view.emails.find((entry) => entry.status === 'draft');
+      found.push({
+        ...empty,
+        id: `decision:${decision.id}`,
+        type: 'decision',
+        object_id: decision.id,
+        case_id: view.case.id,
+        kind: option?.kind ?? null,
+        title: option?.title ?? decision.title,
+        summary: decision.explanation,
+        needs_roles: decisionRoles(decision),
+        approver_name: decision.approver_name,
+        deadline: decision.deadline,
+        cost_eur: option?.cost_eur ?? null,
+        commits_money: (option?.cost_eur ?? 0) > 0,
+        supplier_id: option?.supplier_id ?? null,
+        arrives_at: option?.arrives_at ?? null,
+        email: draft === undefined ? null : draft,
+      });
+    }
+    for (const correction of view.corrections) {
+      if (correction.status !== 'proposed') {
+        continue;
+      }
+      found.push({
+        ...empty,
+        id: `correction:${correction.id}`,
+        type: 'correction',
+        object_id: correction.id,
+        case_id: view.case.id,
+        kind: 'erp_correction',
+        title: `Wareneingang ${view.finding?.gr_number ?? ''} korrigieren`,
+        summary: view.case.title,
+        needs_roles: correction.approver_role === null ? [] : [correction.approver_role],
+        approver_name: null,
+        deadline: null,
+        cost_eur: 0,
+        commits_money: false,
+        email: null,
+      });
+    }
+  }
+  return found;
+}
+
 export function getState(): LineguardState {
-  return structuredClone(demo().state);
+  return structuredClone({...demo().state, approvals: waitingApprovals()});
 }
 
 export function getCase(id: number): CaseView | null {
