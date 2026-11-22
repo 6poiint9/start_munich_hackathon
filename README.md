@@ -48,7 +48,7 @@ Customer data is not in this repository. The customer pack `packs/soony_gh6/`, t
 4. Content from outside is data. An instruction in a document is flagged and counts in no calculation.
 5. A person approves each decision, each ERP correction and each mail that commits money. The API checks the role of that person against the approval rules of the pack.
 
-`architecture.md` is the overview. `docs/umsetzung.md` lists the build steps. `docs/api.md` describes the API for the page.
+`architecture.md` is the overview. `docs/umsetzung.md` lists the build steps. `docs/api.md` describes the API for the page. `docs/deploy.md` describes how to run Lineguard on a server with Docker.
 
 ## Tests
 

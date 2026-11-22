@@ -1,0 +1,50 @@
+# Lineguard on one server: page and API with agents, behind the
+# nginx-proxy and acme-companion that already run on the server.
+# Start: docker compose up -d --build   (docs/deploy.md)
+#
+# nginx-proxy sends /api/... (without /api) to `api` and everything else
+# to `web`. acme-companion gets the HTTPS certificate.
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      LINEGUARD_PACK: ${LINEGUARD_PACK:-packs/soony_gh6}
+      CORS_ORIGINS: https://${LINEGUARD_DOMAIN:-lineguard.dlsystem.de}
+      VIRTUAL_HOST: ${LINEGUARD_DOMAIN:-lineguard.dlsystem.de}
+      VIRTUAL_PORT: "8000"
+      VIRTUAL_PATH: /api/
+      VIRTUAL_DEST: /
+      LETSENCRYPT_HOST: ${LINEGUARD_DOMAIN:-lineguard.dlsystem.de}
+    volumes:
+      - ./packs:/app/packs:ro
+      - ./data:/app/data
+    networks: [proxy]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_BASE: /api
+    restart: unless-stopped
+    environment:
+      VIRTUAL_HOST: ${LINEGUARD_DOMAIN:-lineguard.dlsystem.de}
+      VIRTUAL_PORT: "3000"
+      VIRTUAL_PATH: /
+      LETSENCRYPT_HOST: ${LINEGUARD_DOMAIN:-lineguard.dlsystem.de}
+    networks: [proxy]
+    depends_on:
+      - api
+
+networks:
+  # The network of the container `nginx-proxy`. Find its name with:
+  #   docker inspect nginx-proxy --format '{{json .NetworkSettings.Networks}}'
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-nginx-proxy}

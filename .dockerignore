@@ -1,0 +1,5 @@
+# Only the backend code goes into the image. Secrets and data stay out.
+*
+!pyproject.toml
+!lineguard/
+lineguard/**/__pycache__

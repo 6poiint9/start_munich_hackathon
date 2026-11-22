@@ -202,6 +202,10 @@ def _run(args: argparse.Namespace) -> int:
     from lineguard import main as main_module  # pylint: disable=import-outside-toplevel
 
     pack = pack_module.load()
+    # Migrate once before the threads start. On an empty database, threads
+    # that migrate at the same time create the same tables twice and die.
+    with contextlib.closing(db.connect(pack.workspace)):
+        pass
     make_runtime = runtime_factory(pack)
     workers = orchestrator.Orchestrator(make_runtime)
     if not args.no_agents:
@@ -210,7 +214,7 @@ def _run(args: argparse.Namespace) -> int:
         workers.start()
     try:
         uvicorn.run(main_module.create_app(pack, llm=llm_module.from_env()),
-                    host="127.0.0.1", port=args.port)
+                    host=args.host, port=args.port)
     finally:
         workers.stop()
     return 0

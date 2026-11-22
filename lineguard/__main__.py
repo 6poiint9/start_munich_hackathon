@@ -24,6 +24,8 @@ def _build_parser() -> argparse.ArgumentParser:
     commands.add_parser("init")
     run = commands.add_parser("run")
     run.add_argument("--port", type=int, default=8000)
+    run.add_argument("--host", default="127.0.0.1",
+                     help="address to listen on; 0.0.0.0 in a container")
     run.add_argument("--no-agents", action="store_true")
     load = commands.add_parser("import")
     load.add_argument("--no-llm", action="store_true",
