@@ -20,7 +20,7 @@ _OPEN_ORDER = ("open", "confirmed", "awaiting_approval", "in_transit")
 
 
 def _number(value: float) -> str:
-    return f"{value:,.0f}".replace(",", ".")
+    return f"{value:,.0f}"
 
 
 def _case(rule: str, subject: str, title: str, act_by: datetime.datetime | None, owner_role: str, fact_ids: list[int], **link: Any) -> dict[str, Any]:
@@ -55,8 +55,8 @@ def revision_mismatch_open_po(rt: runtime.Runtime, now: datetime.datetime) -> li
         eta = core.timeutil.to_datetime(order.get("eta"), rt.pack.timezone)
         cases.append(_case(
             "revision_mismatch_open_po", f"{order['po_number']}:{order.get('po_line') or ''}",
-            f"Bestellung {order['po_number']}: {_number(order['qty'] or 0)} Stück "
-            f"{component_id} in Revision {rev}, freigegeben ist {released[component_id]}",
+            f"Purchase order {order['po_number']}: {_number(order['qty'] or 0)} pieces "
+            f"{component_id} in revision {rev}, released is {released[component_id]}",
             eta - notice if eta else None,
             engine.route(rt, "purchase_order", (order["qty"] or 0) * (order["value_num"] or 0))[0],
             [order["id"], *([proof["id"]] if proof else [])],
@@ -86,8 +86,8 @@ def validity_expiring(rt: runtime.Runtime, now: datetime.datetime) -> list[dict[
             continue
         if until - datetime.timedelta(days=float(days)) > horizon:
             continue
-        what = "Lieferanten-Freigabe" if fact_type == "release_status" else "Vertrag"
-        state = "ist abgelaufen am" if until <= now else "läuft aus am"
+        what = "Supplier release" if fact_type == "release_status" else "Contract"
+        state = "expired on" if until <= now else "expires on"
         cases.append(_case(
             "validity_expiring", f"{fact_type}:{supplier}:{text}",
             f"{what} {supplier} ({text}) {state} {until.date().isoformat()}",
@@ -96,9 +96,32 @@ def validity_expiring(rt: runtime.Runtime, now: datetime.datetime) -> list[dict[
     return cases
 
 
+def feed_stale(rt: runtime.Runtime, now: datetime.datetime) -> list[dict[str, Any]]:
+    """Opens one case per shipment feed whose latest update is too old."""
+    files = {row["id"]: row["path"] for row in db.rows(
+        rt.conn, rt.ws,
+        "SELECT id, path FROM files WHERE workspace_id = ? AND is_current = 1")}
+    latest: dict[int, tuple[datetime.datetime, int]] = {}
+    for fact in core.current_facts(rt, "shipment"):
+        file_id = fact["source_file_id"]
+        updated = core.timeutil.to_datetime(fact["data"].get("updated_at"), rt.pack.timezone)
+        if file_id not in files or updated is None:
+            continue
+        if file_id not in latest or updated > latest[file_id][0]:
+            latest[file_id] = (updated, fact["id"])
+    limit = datetime.timedelta(hours=rt.pack.watch.feed_stale_hours)
+    return [
+        _case("feed_stale", files[file_id],
+              f"Shipment feed {files[file_id]} has not updated since {clock.iso(updated)}",
+              updated + limit, "erp_owner", [fact_id])
+        for file_id, (updated, fact_id) in latest.items()
+        if updated + limit <= now
+    ]
+
+
 Watcher = Callable[[runtime.Runtime, datetime.datetime], list[dict[str, Any]]]
 
-WATCHERS: list[Watcher] = [revision_mismatch_open_po, validity_expiring]
+WATCHERS: list[Watcher] = [revision_mismatch_open_po, validity_expiring, feed_stale]
 
 
 def run_watchers(rt: runtime.Runtime) -> int:
@@ -123,6 +146,8 @@ def run_watchers(rt: runtime.Runtime) -> int:
                 (found["dedupe_key"],))
             if existing:
                 if existing["state"] != "dismissed":
+                    if existing["state"] == "closed":
+                        found["state"] = "open"
                     db.update(rt.conn, "cases", rt.ws, existing["id"],
                               updated_at=clock.iso(), **{
                                   k: v for k, v in found.items() if k != "dedupe_key"})

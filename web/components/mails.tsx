@@ -8,9 +8,9 @@ import type {CaseView, Email} from '../lib/types';
 import {emailStatusTone, emailStatusWord, languageWord} from '../lib/words';
 
 import {holdsRole, useAction, usePage} from './page-context';
-import {ApproverNote, Button, Card, ErrorNote, Tag} from './ui';
+import {ApproverNote, Button, ErrorNote, Tag} from './ui';
 
-const FIELD_CLASS = 'mt-1 w-full rounded-ctl border border-rule-2 bg-well px-2 py-1 text-body';
+const FIELD_CLASS = 'mt-1 w-full rounded-ctl border border-rule-2 bg-sheet px-2 py-1 text-body';
 
 function mailRoles(view: CaseView): string[] {
   const roles = view.decisions.flatMap((decision) =>
@@ -42,16 +42,16 @@ function Draft({email, roles, live}: DraftProps) {
     <li className="space-y-2 py-3 first:pt-0">
       <div className="flex flex-wrap items-center gap-2 text-meta text-ink-2">
         <Tag tone="wait">{emailStatusWord(email.status)}</Tag>
-        {email.commits_money && <Tag tone="stop">bindet Geld</Tag>}
+        {email.commits_money && <Tag tone="stop">Commits the company to pay</Tag>}
         <span>
-          An <span className="font-medium text-ink">{email.to_addr ?? 'unbekannt'}</span>
+          To <span className="font-medium text-ink">{email.to_addr ?? 'unknown'}</span>
         </span>
         <span>{languageWord(email.language)}</span>
       </div>
       {email.reason !== null && <p className="text-meta text-ink-3">{email.reason}</p>}
       <div>
         <label htmlFor={subjectId} className="field-name">
-          Betreff
+          Subject
         </label>
         <input
           id={subjectId}
@@ -83,15 +83,19 @@ function Draft({email, roles, live}: DraftProps) {
               void action.run((personId) => api.approveEmail(email.id, {subject, body}, personId))
             }
           >
-            Freigeben und senden
+            {live ? 'Approve and send' : 'Approve'}
           </Button>
           <Button
             disabled={action.busy}
             onClick={() => void action.run((personId) => api.discardEmail(email.id, personId))}
           >
-            Verwerfen
+            Discard
           </Button>
-          {!live && <span className="text-meta text-ink-3">Die Mail geht nur ins Protokoll.</span>}
+          {!live && (
+            <span className="text-meta text-ink-3">
+              Mail mode is &quot;log only&quot;. Lineguard writes the mail to the log and sends nothing.
+            </span>
+          )}
         </div>
       ) : (
         <ApproverNote roles={roles} />
@@ -106,16 +110,16 @@ function ThreadMail({email}: {email: Email}) {
   const incoming = email.direction === 'in';
   const moment = email.sent_at ?? email.created_at;
   return (
-    <li className={incoming ? 'border-l-2 border-go-fill py-2 pl-3' : 'border-l-2 border-rule-2 py-2 pl-3'}>
+    <li className={incoming ? 'border-l border-ink py-2 pl-3' : 'border-l border-rule-2 py-2 pl-3'}>
       <div className="flex flex-wrap items-center gap-2 text-meta text-ink-2">
         <span className="font-medium text-ink">
-          {incoming ? `Eingang von ${email.from_addr ?? 'unbekannt'}` : `Ausgang an ${email.to_addr ?? 'unbekannt'}`}
+          {incoming ? `From ${email.from_addr ?? 'unknown'}` : `To ${email.to_addr ?? 'unknown'}`}
         </span>
         <Tag tone={emailStatusTone(email.status)}>{emailStatusWord(email.status)}</Tag>
-        {email.commits_money && <Tag tone="stop">bindet Geld</Tag>}
+        {email.commits_money && <Tag tone="stop">Commits the company to pay</Tag>}
         {moment !== null && <span className="num">{formatClock(moment, timezone, null)}</span>}
       </div>
-      <p className="mt-1 font-medium">{email.subject ?? '(ohne Betreff)'}</p>
+      <p className="mt-1 font-medium">{email.subject ?? '(no subject)'}</p>
       {email.body !== null && (
         <p className="mt-1 max-h-48 max-w-[80ch] overflow-auto whitespace-pre-wrap text-ink-2">{email.body}</p>
       )}
@@ -131,7 +135,7 @@ export function Mails({view, live}: {view: CaseView; live: boolean}) {
   const drafts = view.emails.filter((email) => email.status === 'draft');
   const thread = view.emails.filter((email) => email.status !== 'draft');
   return (
-    <Card title="Mails">
+    <div>
       {drafts.length > 0 && (
         <ul className="divide-y divide-rule">
           {drafts.map((email) => (
@@ -141,7 +145,7 @@ export function Mails({view, live}: {view: CaseView; live: boolean}) {
       )}
       {thread.length > 0 && (
         <>
-          {drafts.length > 0 && <p className="field-name mt-2 border-t border-rule pt-3">Verlauf</p>}
+          {drafts.length > 0 && <p className="field-name mt-2 border-t border-rule pt-3">Sent and received</p>}
           <ul className="mt-1 space-y-2">
             {thread.map((email) => (
               <ThreadMail key={email.id} email={email} />
@@ -149,6 +153,6 @@ export function Mails({view, live}: {view: CaseView; live: boolean}) {
           </ul>
         </>
       )}
-    </Card>
+    </div>
   );
 }

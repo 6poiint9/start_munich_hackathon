@@ -2,10 +2,10 @@
  "workspace": "demo_bikes",
  "customer": "Radwerk Demo",
  "labels": {
-  "deadline": "Auslieferung",
-  "product": "Modell",
-  "line": "Montagelinie",
-  "units": "Räder"
+  "deadline": "delivery",
+  "product": "model",
+  "line": "assembly line",
+  "units": "bikes"
  },
  "at": "2027-03-01T07:00:00Z",
  "next_due": "2027-03-05T15:00:00Z",
@@ -19,7 +19,7 @@
  "products": [
   {
    "product_id": "BIKE-CITY",
-   "description": "Stadtrad City",
+   "description": "City bike",
    "demand": 700.0,
    "packed": 100.0,
    "packed_as_of": "2027-02-28T22:59:00Z",
@@ -43,7 +43,7 @@
    "id": 1,
    "kind": "gap",
    "rule": null,
-   "title": "Rahmen Alu: 50 fehlen, 50 Räder in Gefahr",
+   "title": "Aluminium frame: 50 short, 50 bikes at risk",
    "impact": "deadline_blocker",
    "state": "open",
    "rank": 1,

@@ -11,7 +11,7 @@ export interface HeroModel {
   noteLabel: string;
   /** Coverage gap when the case has one. Otherwise the booking difference. */
   gap: number | null;
-  gapLabel: 'Lücke' | 'Reserve' | 'Differenz';
+  gapLabel: 'Shortage' | 'Reserve' | 'Difference';
   /** Printed number that the handwritten quantity replaced. */
   printed: number | null;
   handwritten: boolean;
@@ -79,13 +79,13 @@ export function heroModel(view: CaseView): HeroModel | null {
   const coverage = view.case.gap_qty;
   const gap = coverage ?? finding.delta_qty;
   const gapLabel =
-    coverage === null ? 'Differenz' : coverage < 0 ? 'Lücke' : 'Reserve';
+    coverage === null ? 'Difference' : coverage < 0 ? 'Shortage' : 'Reserve';
   return {
     finding,
     note,
     booked: finding.booked_qty,
     noteQty,
-    noteLabel: note === null ? 'Belegte Menge' : 'Lieferschein',
+    noteLabel: note === null ? 'Quantity in the documents' : 'On the delivery note',
     gap,
     gapLabel,
     printed,

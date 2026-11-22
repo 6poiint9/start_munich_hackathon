@@ -75,7 +75,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
     def get_case(case_id: int, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
         found = views.case(rt, case_id)
         if found is None:
-            raise fastapi.HTTPException(404, "Fall nicht gefunden")
+            raise fastapi.HTTPException(404, "Case not found")
         return found
 
     @app.get("/files/{file_id}/content")
@@ -84,7 +84,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
                       "SELECT * FROM files WHERE workspace_id = ? AND id = ?",
                       (file_id,))
         if file is None or not rt.blob.exists(file["blob_key"]):
-            raise fastapi.HTTPException(404, "Datei nicht gefunden")
+            raise fastapi.HTTPException(404, "File not found")
         media_type = mimetypes.guess_type(file["path"])[0] or "application/octet-stream"
         return responses.Response(rt.blob.get(file["blob_key"]), media_type=media_type)
 
@@ -92,11 +92,11 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
         """The person of the request. Checks the role when roles are given."""
         person_id = request.headers.get("X-Lineguard-User")
         if not person_id:
-            raise fastapi.HTTPException(401, "Header X-Lineguard-User fehlt")
+            raise fastapi.HTTPException(401, "Header X-Lineguard-User is missing")
         if roles is None:
             known = engine.persons(rt).get(person_id)
             if known is None:
-                raise fastapi.HTTPException(403, "Person ist nicht bekannt")
+                raise fastapi.HTTPException(403, "This person is not known")
             return known
         try:
             return engine.require_role(rt, person_id, roles)
@@ -106,14 +106,14 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
     def reason_of(body: dict[str, Any] | None) -> str:
         reason = str((body or {}).get("reason") or "").strip()
         if not reason:
-            raise fastapi.HTTPException(422, "Ein Grund ist Pflicht")
+            raise fastapi.HTTPException(422, "A reason is required")
         return reason
 
     def run(action: Any, *args: Any) -> dict[str, Any]:
         try:
             return action(*args)
         except KeyError as error:
-            raise fastapi.HTTPException(404, "Nicht gefunden") from error
+            raise fastapi.HTTPException(404, "Not found") from error
         except approvals.StateError as error:
             raise fastapi.HTTPException(409, str(error)) from error
 
@@ -123,7 +123,8 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
             rt.conn, rt.ws,
             "SELECT id, type, status, priority, created_at, finished_at, "
             "handled_by, payload, error FROM events WHERE workspace_id = ? "
-            "AND type != 'tick' ORDER BY id DESC LIMIT ?", (min(limit, 500),))
+            "AND type NOT IN ('tick', 'tick.stock', 'tick.action') "
+            "ORDER BY id DESC LIMIT ?", (min(limit, 500),))
         for event in found:
             event["payload"] = db.loads(event["payload"], {})
         return found

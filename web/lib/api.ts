@@ -220,6 +220,6 @@ export async function getFileText(file: EvidenceFile): Promise<string> {
   }
   const text = await response.text();
   return text.length > FILE_TEXT_LIMIT
-    ? `${text.slice(0, FILE_TEXT_LIMIT)}\n… (gekürzt)`
+    ? `${text.slice(0, FILE_TEXT_LIMIT)}\n… (shortened)`
     : text;
 }

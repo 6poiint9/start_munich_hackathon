@@ -28,8 +28,8 @@ function stepsOf(view: CaseView, timezone: string): Step[] {
   const steps: Step[] = [
     {
       key: 'erp',
-      label: 'Bestand laut ERP',
-      note: detail.stock_as_of === null ? null : `Stand ${formatDate(detail.stock_as_of, timezone)}`,
+      label: 'Stock in the ERP',
+      note: detail.stock_as_of === null ? null : `as of ${formatDate(detail.stock_as_of, timezone)}`,
       value: detail.erp_stock,
       signed: false,
       tone: 'plain',
@@ -39,7 +39,7 @@ function stepsOf(view: CaseView, timezone: string): Step[] {
   if (used > 0) {
     steps.push({
       key: 'used',
-      label: 'Seit dem Stand verbraucht',
+      label: 'Used since that date',
       note: null,
       value: -used,
       signed: true,
@@ -51,7 +51,7 @@ function stepsOf(view: CaseView, timezone: string): Step[] {
     steps.push({
       key: `block-${index}`,
       label: block.text ?? blockReasonWord(block.reason),
-      note: block.text === null ? null : `Abzug: ${blockReasonWord(block.reason)}`,
+      note: block.text === null ? null : `Deducted: ${blockReasonWord(block.reason).toLowerCase()}`,
       value: block.qty === null ? null : -Math.abs(block.qty),
       signed: true,
       tone: 'risk',
@@ -60,7 +60,7 @@ function stepsOf(view: CaseView, timezone: string): Step[] {
   });
   steps.push({
     key: 'usable',
-    label: 'Nutzbar',
+    label: 'Usable stock',
     note: null,
     value: detail.usable,
     signed: false,
@@ -70,7 +70,7 @@ function stepsOf(view: CaseView, timezone: string): Step[] {
   if (inbound > 0) {
     steps.push({
       key: 'inbound',
-      label: 'Gesicherter Zulauf',
+      label: 'Secured deliveries',
       note: null,
       value: inbound,
       signed: true,
@@ -81,7 +81,7 @@ function stepsOf(view: CaseView, timezone: string): Step[] {
   steps.push(
     {
       key: 'need',
-      label: 'Bedarf',
+      label: 'Demand',
       note: null,
       value: detail.need,
       signed: false,
@@ -90,7 +90,7 @@ function stepsOf(view: CaseView, timezone: string): Step[] {
     },
     {
       key: 'gap',
-      label: short ? 'Lücke' : 'Reserve',
+      label: short ? 'Shortage' : 'Reserve',
       note: null,
       value: gap,
       signed: true,
@@ -110,46 +110,43 @@ export function Waterfall({view}: {view: CaseView}) {
     return null;
   }
   const steps = stepsOf(view, timezone);
+  const short = steps.at(-1)?.tone === 'risk';
   const max = Math.max(1, ...steps.map((step) => Math.abs(step.value ?? 0)));
   return (
-    <section className="lg-water lg-on-card" aria-label="Rechnung">
-      <h3>Rechnung</h3>
-      <div>
+    <section className="cd-block" aria-labelledby="cd-water">
+      <h3 id="cd-water" className="lg-label">
+        How Lineguard calculates the {short ? 'shortage' : 'reserve'}
+      </h3>
+      <p className="cd-lead">
+        The ERP shows {formatCount(detail.erp_stock)}. Lineguard counts {formatCount(detail.usable)}{' '}
+        as usable.
+      </p>
+      <div className="cd-steps">
         {steps.map((step) => {
           const width = step.value === null ? 0 : (Math.abs(step.value) / max) * 100;
           const text = step.signed ? formatSigned(step.value) : formatCount(step.value);
           return (
             <div
               key={step.key}
-              className={
-                step.tone === 'plain'
-                  ? step.result
-                    ? 'lg-step is-result'
-                    : 'lg-step'
-                  : step.result
-                    ? `lg-step is-result is-${step.tone}`
-                    : `lg-step is-${step.tone}`
-              }
+              className="cd-step"
+              data-tone={step.tone === 'plain' ? undefined : step.tone}
+              data-result={step.result}
             >
-              <i className="lg-rail" aria-hidden="true" />
-              <div className="lg-step-name">
+              <div className="cd-step-name">
                 {step.label}
                 {step.note !== null && <small>{step.note}</small>}
-                <div className="lg-track" aria-hidden="true">
-                  <i style={{width: `${width}%`}} />
-                </div>
+              </div>
+              <div className="cd-track" aria-hidden="true">
+                <i style={{width: `${width}%`}} />
               </div>
               <b>{text}</b>
             </div>
           );
         })}
       </div>
-      <p className="lg-balance">
-        ERP: {formatCount(detail.erp_stock)} · Lineguard rechnet mit: {formatCount(detail.usable)}
-      </p>
       {detail.latest_useful_arrival !== null && (
-        <p className="lg-arrival">
-          Späteste nützliche Ankunft: <Clock iso={detail.latest_useful_arrival} distance />
+        <p className="cd-quiet">
+          Latest useful arrival: <Clock iso={detail.latest_useful_arrival} distance />
         </p>
       )}
     </section>

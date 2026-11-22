@@ -13,13 +13,12 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-const TONE_CLASSES: Record<Tone, string> = {
-  neutral:
-    'bg-[color-mix(in_srgb,var(--lg-muted)_28%,white)] text-[var(--lg-text-on-card)]',
-  go: 'bg-[color-mix(in_srgb,var(--lg-ok)_32%,white)] text-[color-mix(in_srgb,var(--lg-ok)_48%,#102018)]',
-  work: 'bg-[color-mix(in_srgb,var(--lg-accent)_26%,white)] text-[color-mix(in_srgb,var(--lg-accent)_58%,#1a1030)]',
-  wait: 'bg-[color-mix(in_srgb,var(--lg-warn)_36%,white)] text-[color-mix(in_srgb,var(--lg-warn)_52%,#241808)]',
-  stop: 'bg-[color-mix(in_srgb,var(--lg-risk)_20%,white)] text-[color-mix(in_srgb,var(--lg-risk)_62%,#1a0810)]',
+const TONE_DOTS: Record<Tone, string | null> = {
+  neutral: null,
+  go: 'bg-go-fill',
+  work: 'bg-work-fill',
+  wait: 'bg-wait-fill',
+  stop: 'bg-stop-fill',
 };
 
 interface TagProps {
@@ -27,15 +26,17 @@ interface TagProps {
   children: ReactNode;
 }
 
-/** A small badge. The word carries the meaning, the color repeats it. */
+/** A small outlined badge. The word carries the meaning, the dot repeats it. */
 export function Tag({tone = 'neutral', children}: TagProps) {
+  const dot = TONE_DOTS[tone];
   return (
     <span
       className={cx(
-        'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-meta font-semibold whitespace-nowrap',
-        TONE_CLASSES[tone],
+        'inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full border px-2 text-meta whitespace-nowrap',
+        tone === 'stop' ? 'border-stop/40 text-stop' : 'border-rule-2 text-ink-2',
       )}
     >
+      {dot !== null && <span aria-hidden="true" className={cx('size-1.5 rounded-full', dot)} />}
       {children}
     </span>
   );
@@ -45,11 +46,11 @@ type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
 const BUTTON_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'border-transparent bg-[var(--lg-accent)] text-[var(--lg-text-on-card)] hover:brightness-105 disabled:bg-[color-mix(in_srgb,var(--lg-muted)_35%,white)] disabled:text-[color-mix(in_srgb,var(--lg-text-on-card)_45%,white)]',
+    'border-ink bg-ink text-paper hover:bg-stamp-deep disabled:border-transparent disabled:bg-well disabled:text-ink-4',
   secondary:
-    'border-[color-mix(in_srgb,var(--lg-text-on-card)_18%,transparent)] bg-white text-[var(--lg-text-on-card)] hover:bg-[color-mix(in_srgb,var(--lg-accent)_14%,white)] disabled:text-[var(--lg-muted)]',
+    'border-rule-2 bg-transparent text-ink hover:border-ink disabled:border-rule disabled:text-ink-4',
   danger:
-    'border-transparent bg-[color-mix(in_srgb,var(--lg-risk)_16%,white)] text-[color-mix(in_srgb,var(--lg-risk)_70%,#1a0810)] hover:bg-[color-mix(in_srgb,var(--lg-risk)_26%,white)] disabled:text-[var(--lg-muted)]',
+    'border-rule-2 bg-transparent text-stop hover:border-stop disabled:border-rule disabled:text-ink-4',
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -68,32 +69,13 @@ export function Button({
     <button
       type={type}
       className={cx(
-        'press inline-flex items-center justify-center rounded-[10px] border font-semibold whitespace-nowrap',
-        large ? 'h-11 px-5 text-lead' : 'h-10 px-3.5 text-body',
+        'press inline-flex items-center justify-center rounded-ctl border font-medium whitespace-nowrap',
+        large ? 'h-11 px-6 text-lead' : 'h-9 px-4 text-body',
         BUTTON_CLASSES[variant],
         className,
       )}
       {...rest}
     />
-  );
-}
-
-interface CardProps {
-  title: string;
-  aside?: ReactNode;
-  children: ReactNode;
-}
-
-/** A titled section of the case detail. */
-export function Card({title, aside, children}: CardProps) {
-  return (
-    <section className="rounded-sheet border border-rule bg-sheet">
-      <header className="flex items-center justify-between gap-3 border-b border-rule px-4 py-2">
-        <h3 className="field-name">{title}</h3>
-        {aside}
-      </header>
-      <div className="px-4 py-3">{children}</div>
-    </section>
   );
 }
 
@@ -103,11 +85,8 @@ export function ErrorNote({message}: {message: string | null}) {
     return null;
   }
   return (
-    <p
-      role="alert"
-      className="rounded-ctl border border-stop/30 bg-stop-wash px-2 py-1 text-meta text-stop"
-    >
-      <span className="font-medium">Nicht ausgeführt: </span>
+    <p role="alert" className="border-l border-stop pl-3 text-meta text-stop">
+      <span className="font-medium">Not done. </span>
       {message}
     </p>
   );
@@ -128,16 +107,12 @@ export function Clock({iso, distance = false}: ClockProps) {
   const past = isPast(iso, now);
   const away = distance && !past ? formatDistance(iso, now) : null;
   return (
-    <span className={cx('whitespace-nowrap', past && 'text-ink-4')}>
-      <time dateTime={iso} className="num">
+    <span className="whitespace-nowrap">
+      <time dateTime={iso} className={cx('num', past && 'text-ink-3')}>
         {formatClock(iso, timezone, now)}
       </time>
-      {away !== null && <span className="text-ink-3"> ({away})</span>}
-      {past && (
-        <span className="ml-1 rounded-tag border border-rule-2 px-1 text-cap font-medium">
-          überfällig
-        </span>
-      )}
+      {away !== null && <span className="font-normal text-ink-3"> ({away})</span>}
+      {past && <span className="font-normal text-stop"> overdue</span>}
     </span>
   );
 }
@@ -153,7 +128,7 @@ export function ApproverNote({roles, name = null}: ApproverNoteProps) {
   if (person === null) {
     return (
       <p className="text-meta text-ink-3">
-        Wähle oben unter „Angemeldet als“ eine Person, um freizugeben.
+        Select a person under &quot;Acting as&quot; to approve or reject.
       </p>
     );
   }
@@ -163,12 +138,9 @@ export function ApproverNote({roles, name = null}: ApproverNoteProps) {
   const names = name !== null ? [name] : holders.slice(0, 3);
   return (
     <p className="text-meta text-ink-3">
-      Freigabe nur durch{' '}
-      <span className="font-medium text-ink-2">
-        {roles.map(roleWord).join(' oder ') || 'eine berechtigte Person'}
-      </span>
-      {names.length > 0 && ` (${names.join(', ')})`}. {person.name} hat diese
-      Rolle nicht.
+      Only {roles.map(roleWord).join(' or ') || 'a person with the right role'}
+      {names.length > 0 && ` (${names.join(', ')})`} can approve this. {person.name} does not
+      have this role.
     </p>
   );
 }
@@ -179,7 +151,7 @@ interface RejectFormProps {
   onReject: (reason: string) => void;
 }
 
-/** "Ablehnen" with a required reason. The form opens in place. */
+/** "Reject" with a required reason. The form opens in place. */
 export function RejectForm({label, busy, onReject}: RejectFormProps) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -204,7 +176,7 @@ export function RejectForm({label, busy, onReject}: RejectFormProps) {
     <form onSubmit={submit} className="flex w-full flex-wrap items-end gap-2">
       <div className="min-w-48 flex-1">
         <label htmlFor={inputId} className="field-name block">
-          Grund der Ablehnung (Pflicht)
+          Reason (required)
         </label>
         <input
           id={inputId}
@@ -212,13 +184,13 @@ export function RejectForm({label, busy, onReject}: RejectFormProps) {
           onChange={(event) => setReason(event.target.value)}
           required
           autoFocus
-          className="mt-1 h-8 w-full rounded-ctl border border-rule-2 bg-well px-2 text-body"
+          className="mt-1 h-9 w-full rounded-ctl border border-rule-2 bg-sheet px-2 text-body"
         />
       </div>
       <Button type="submit" variant="danger" disabled={busy || reason.trim() === ''}>
-        {label} bestätigen
+        Confirm
       </Button>
-      <Button onClick={() => setOpen(false)}>Abbrechen</Button>
+      <Button onClick={() => setOpen(false)}>Cancel</Button>
     </form>
   );
 }

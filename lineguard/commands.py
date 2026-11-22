@@ -113,8 +113,10 @@ def _reread(args: argparse.Namespace) -> int:
             db.emit(rt.conn, rt.ws, "file.changed",
                     {"file_id": file["id"], "path": file["path"]}, priority=2,
                     partition_key=f"file:{file['path']}")
-        _tick(rt)
         handled = pipeline.drain(rt)
+        # The decision loop runs after the new facts are stored.
+        _tick(rt)
+        handled += pipeline.drain(rt)
     print(f"Workspace '{pack.workspace}': {len(files)} files read again, "
           f"{handled} events handled")
     return 0
@@ -141,7 +143,7 @@ def _send_logged(_: argparse.Namespace) -> int:
             key = (row["to_addr"], row["po_ref"], row["case_id"])
             if key in seen:
                 db.update(rt.conn, "emails", rt.ws, row["id"], status="discarded",
-                          reason="Doppelt: gleiche Frage an denselben Empfänger")
+                          reason="Duplicate: same question to the same recipient")
                 continue
             seen.add(key)
             db.update(rt.conn, "emails", rt.ws, row["id"], status="approved")
@@ -194,7 +196,8 @@ def _poll_source(rt: runtime.Runtime) -> None:
 
 
 def _tick(rt: runtime.Runtime) -> None:
-    db.emit(rt.conn, rt.ws, "tick", coalesce_key="tick", priority=3)
+    db.emit(rt.conn, rt.ws, "tick.stock", coalesce_key="tick.stock",
+            partition_key="coverage", priority=1)
     db.emit(rt.conn, rt.ws, "tick.action", coalesce_key="tick.action", priority=3)
 
 

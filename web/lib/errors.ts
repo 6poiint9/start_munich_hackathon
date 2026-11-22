@@ -10,26 +10,26 @@ export class ApiError extends Error {
 }
 
 const STATUS_WORDS = new Map([
-  [401, 'Bitte wähle zuerst oben unter „Angemeldet als“ eine Person.'],
-  [403, 'Diese Person darf das nicht freigeben.'],
-  [404, 'Der Eintrag existiert nicht mehr.'],
-  [409, 'Der Eintrag wurde inzwischen geändert oder ist schon erledigt.'],
-  [422, 'Eine Angabe fehlt oder ist ungültig.'],
+  [401, 'Select a person under "Signed in as" first.'],
+  [403, 'This person cannot approve this step.'],
+  [404, 'This entry does not exist any more.'],
+  [409, 'Someone changed or completed this entry in the meantime.'],
+  [422, 'A value is missing or not valid.'],
 ]);
 
-/** A German sentence for an error of a call. */
+/** An English sentence for an error of a call. */
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const known = STATUS_WORDS.get(error.status);
     const detail = error.message.startsWith('HTTP ') ? null : error.message;
     if (known === undefined) {
-      return detail ?? `Der Server meldet einen Fehler (HTTP ${error.status}).`;
+      return detail ?? `The server reports an error (HTTP ${error.status}).`;
     }
-    // The role message of the backend is already a full German sentence.
+    // The role message of the backend is already a full sentence.
     if (error.status === 403 && detail !== null) {
       return `${detail}.`.replace(/\.\.$/, '.');
     }
     return detail === null ? known : `${known} (${detail})`;
   }
-  return 'Der Server antwortet nicht. Die Aktion wurde nicht ausgeführt.';
+  return 'The server does not answer. Lineguard did not run the action.';
 }

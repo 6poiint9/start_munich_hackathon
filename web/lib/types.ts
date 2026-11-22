@@ -103,6 +103,59 @@ export interface Person {
   roles: string[];
 }
 
+/** The mail draft that goes out when a person approves. */
+export interface ApprovalMail {
+  id: number;
+  to_addr: string | null;
+  subject: string | null;
+  body: string | null;
+  language: string | null;
+}
+
+/** One thing that waits for the click of a person. */
+export interface Approval {
+  /** Unique over all types, for example `decision:4`. */
+  id: string;
+  /** `decision` or `correction`. */
+  type: string;
+  object_id: number;
+  case_id: number | null;
+  /** The kind of the recommended option, for example `confirm_terms`. */
+  kind: string | null;
+  title: string;
+  summary: string | null;
+  needs_roles: string[];
+  approver_name: string | null;
+  deadline: string | null;
+  cost_eur: number | null;
+  cost_unknown: boolean;
+  commits_money: boolean;
+  supplier_id: string | null;
+  arrives_at: string | null;
+  /** The condition of the supplier, as the document states it. */
+  condition: string | null;
+  /** Where the condition differs from the order. */
+  conflict: string | null;
+  note: string | null;
+  after_deadline: boolean;
+  email: ApprovalMail | null;
+  correction_payload: Record<string, unknown> | null;
+  erp_writer: string | null;
+}
+
+/** A click that happened, with its effect. */
+export interface ApprovalDone {
+  id: string;
+  type: string;
+  case_id: number | null;
+  title: string;
+  status: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  mail_status: string | null;
+  mail_to: string | null;
+}
+
 export interface LineguardState {
   customer: string | null;
   labels: Labels;
@@ -117,6 +170,8 @@ export interface LineguardState {
   counters: Counters;
   booking_review: BookingReview;
   problems: Problem[];
+  approvals: Approval[];
+  approvals_done: ApprovalDone[];
   people: Person[];
   mail_mode: string;
 }
@@ -207,6 +262,7 @@ export interface Correction {
   id: number;
   status: string;
   payload: Record<string, unknown>;
+  writer: string | null;
   approver_role: string | null;
   approved_by: string | null;
   approved_at: string | null;
@@ -235,6 +291,7 @@ export interface Option {
 
 export interface Decision {
   id: number;
+  kind: string | null;
   title: string;
   explanation: string | null;
   status: string;

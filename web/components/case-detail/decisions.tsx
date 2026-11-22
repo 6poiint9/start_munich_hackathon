@@ -8,15 +8,15 @@ import type {CaseView, Decision, Option} from '../../lib/types';
 import {decisionStatusTone, decisionStatusWord, planRoleWord, roleWord} from '../../lib/words';
 
 import {holdsRole, useAction, usePage} from '../page-context';
-import {ApproverNote, Button, Clock, ErrorNote, RejectForm, Tag, cx} from '../ui';
+import {ApproverNote, Button, Clock, ErrorNote, RejectForm, Tag} from '../ui';
 
 const SURE_FROM = 0.85;
 
-function confidenceText(confidence: number | null): string {
+function certaintyText(confidence: number | null): string {
   if (confidence === null) {
-    return 'unbekannt';
+    return 'Unknown';
   }
-  return `${confidence >= SURE_FROM ? 'sicher' : 'unsicher'} ${formatPercent(confidence)}`;
+  return `${confidence >= SURE_FROM ? 'High' : 'Low'}, ${formatPercent(confidence)}`;
 }
 
 function isLate(option: Option, latestUseful: string | null): boolean {
@@ -42,60 +42,58 @@ interface OptionCardProps {
 }
 
 function OptionCard({option, latestUseful, recommended, chosen, group, onChoose}: OptionCardProps) {
-  const role = planRoleWord(option.role_in_plan) ?? (recommended ? 'Empfehlung' : null);
+  const role = recommended ? null : planRoleWord(option.role_in_plan);
   const late = isLate(option, latestUseful);
-  const open = group !== null;
   return (
     <label
-      className={cx(
-        'lg-option',
-        option.feasible && 'is-feasible',
-        !option.feasible && 'is-blocked',
-        recommended && 'is-recommended',
-        chosen && 'is-chosen',
-      )}
+      className="cd-option"
+      data-chosen={chosen}
+      data-blocked={!option.feasible}
+      data-pick={group !== null && option.feasible}
     >
-      {open && (
+      {group !== null && (
         <input
           type="radio"
           name={group}
-          className="lg-radio"
+          className="cd-radio"
           checked={chosen}
           disabled={!option.feasible}
           onChange={() => onChoose(option.id)}
         />
       )}
-      <span className="lg-option-title">
-        {recommended && <span className="lg-rec">Empfehlung</span>}
-        <span>{option.title}</span>
-        {role !== null && role !== 'Empfehlung' && <Tag tone={option.role_in_plan === 'backup' ? 'neutral' : 'work'}>{role}</Tag>}
-        {!option.feasible && <Tag tone="stop">nicht machbar</Tag>}
-        {option.status === 'approved' && <Tag tone="go">freigegeben</Tag>}
+      <span className="cd-option-body">
+        <span className="cd-option-title">
+          <span>{option.title}</span>
+          {recommended && <Tag tone="go">Recommended</Tag>}
+          {role !== null && <Tag>{role}</Tag>}
+          {!option.feasible && <Tag tone="stop">Not possible</Tag>}
+          {option.status === 'approved' && <Tag tone="go">Approved</Tag>}
+        </span>
+        {!option.feasible && option.infeasible_reason !== null && (
+          <span className="cd-quiet">Reason: {option.infeasible_reason}</span>
+        )}
+        <dl className="cd-figs">
+          <div>
+            <dt className="lg-label">Adds</dt>
+            <dd>{formatSigned(option.qty_gain)}</dd>
+          </div>
+          <div>
+            <dt className="lg-label">Arrives</dt>
+            <dd>
+              <Clock iso={option.arrives_at} />
+              {late && <span className="lg-hot"> too late</span>}
+            </dd>
+          </div>
+          <div>
+            <dt className="lg-label">Cost</dt>
+            <dd>{formatMoney(option.cost_eur)}</dd>
+          </div>
+          <div>
+            <dt className="lg-label">Certainty</dt>
+            <dd>{certaintyText(option.confidence)}</dd>
+          </div>
+        </dl>
       </span>
-      {!option.feasible && option.infeasible_reason !== null && (
-        <p className="lg-reason">Grund: {option.infeasible_reason}</p>
-      )}
-      <dl className="lg-figs">
-        <div>
-          <dt>Gewinn</dt>
-          <dd>{formatSigned(option.qty_gain)}</dd>
-        </div>
-        <div>
-          <dt>Ankunft</dt>
-          <dd>
-            <Clock iso={option.arrives_at} />
-            {late && <span className="lg-late">zu spät</span>}
-          </dd>
-        </div>
-        <div>
-          <dt>Kosten</dt>
-          <dd>{formatMoney(option.cost_eur)}</dd>
-        </div>
-        <div>
-          <dt>Zusage</dt>
-          <dd>{confidenceText(option.confidence)}</dd>
-        </div>
-      </dl>
     </label>
   );
 }
@@ -103,16 +101,18 @@ function OptionCard({option, latestUseful, recommended, chosen, group, onChoose}
 interface DecisionBlockProps {
   decision: Decision;
   view: CaseView;
+  live: boolean;
 }
 
-/** One decision: option cards, the recommended one marked, one approve button. */
-export function DecisionBlock({decision, view}: DecisionBlockProps) {
+/** One decision: the options, the recommended one marked, one approve button. */
+export function DecisionBlock({decision, view, live}: DecisionBlockProps) {
   const {person, people, timezone, now} = usePage();
   const action = useAction();
   const [picked, setPicked] = useState<number | null>(null);
 
+  const isAlert = decision.kind === 'unclosable_gap';
   const listed = view.options.filter((option) => decision.options.includes(option.id));
-  const options = listed.length > 0 ? listed : view.options;
+  const options = isAlert ? [] : listed.length > 0 ? listed : view.options;
   const feasible = options.filter((option) => option.feasible);
   const fallback =
     feasible.find((option) => option.id === decision.recommended_option) ??
@@ -124,39 +124,60 @@ export function DecisionBlock({decision, view}: DecisionBlockProps) {
   const allowed = holdsRole(person, roles);
   const decider = people.find((entry) => entry.person_id === decision.decided_by)?.name ?? decision.decided_by;
   const latestUseful = view.detail.latest_useful_arrival;
-  const route = roles.map(roleWord).join(' oder ') || 'jede Rolle';
+  const route = roles.map(roleWord).join(' or ') || 'Any role';
+  const hasDraft = view.emails.some((email) => email.status === 'draft');
 
   return (
     <section
-      aria-label={`Entscheidung: ${decision.title}`}
-      className={open ? 'lg-decision lg-on-card is-open' : 'lg-decision lg-on-card'}
+      aria-label={`Decision: ${decision.title}`}
+      className="cd-decision"
+      data-open={open}
     >
-      <header className="lg-decision-head">
+      <header className="cd-block-head">
         <div>
-          <p className="lg-kicker-label">{open ? 'Deine Entscheidung' : 'Entscheidung'}</p>
+          <p className="lg-label">{open ? 'Decision that waits for a person' : 'Decision'}</p>
           <h3>{decision.title}</h3>
         </div>
-        <p className="lg-when">
+        <p className="cd-when">
           <Tag tone={decisionStatusTone(decision.status)}>{decisionStatusWord(decision.status)}</Tag>
           {open && decision.deadline !== null && (
-            <>
-              {' '}
-              entscheiden bis <Clock iso={decision.deadline} distance />
-            </>
+            <span>
+              Decide by <Clock iso={decision.deadline} distance />
+            </span>
           )}
         </p>
       </header>
-      {decision.explanation !== null && <p className="lg-explain">{decision.explanation}</p>}
-      <p className="lg-route">
-        Freigabe durch {route}
-        {decision.approver_name !== null && ` · ${decision.approver_name}`}
-        {decision.policy_ref !== null && <span className="lg-quiet"> · Regel: {decision.policy_ref}</span>}
-      </p>
+      {decision.explanation !== null && <p className="cd-explain">{decision.explanation}</p>}
+      <dl className="cd-route">
+        <div>
+          <dt className="lg-label">Who approves</dt>
+          <dd>
+            {route}
+            {decision.approver_name !== null && ` · ${decision.approver_name}`}
+          </dd>
+        </div>
+        {decision.policy_ref !== null && (
+          <div>
+            <dt className="lg-label">Approval rule</dt>
+            <dd>{decision.policy_ref}</dd>
+          </div>
+        )}
+        {latestUseful !== null && (
+          <div>
+            <dt className="lg-label">Latest useful arrival</dt>
+            <dd>
+              <Clock iso={latestUseful} />
+            </dd>
+          </div>
+        )}
+      </dl>
 
       {options.length === 0 ? (
-        <p className="lg-explain">Zu dieser Entscheidung gibt es keine Option.</p>
+        <p className="cd-explain">{isAlert
+          ? 'This alert does not arrange a later delivery. Check the available options for dates and costs.'
+          : 'This decision has no option.'}</p>
       ) : (
-        <div role={open ? 'radiogroup' : undefined} aria-label="Optionen" className="lg-options">
+        <div role={open ? 'radiogroup' : undefined} aria-label="Options" className="cd-options">
           {options.map((option) => (
             <OptionCard
               key={option.id}
@@ -164,7 +185,7 @@ export function DecisionBlock({decision, view}: DecisionBlockProps) {
               latestUseful={latestUseful}
               recommended={option.id === decision.recommended_option}
               chosen={open && option.id === chosen?.id}
-              group={open ? `entscheidung-${decision.id}` : null}
+              group={open ? `decision-${decision.id}` : null}
               onChoose={setPicked}
             />
           ))}
@@ -172,56 +193,61 @@ export function DecisionBlock({decision, view}: DecisionBlockProps) {
       )}
 
       {open ? (
-        <footer className="lg-approve">
+        <footer className="cd-approve">
           {allowed ? (
-            <div className="lg-approve-row">
-              <Button
-                variant="primary"
-                large
-                className="lg-approve-btn"
-                disabled={action.busy || chosen === undefined}
-                onClick={() =>
-                  void action.run((personId) =>
-                    api.approveDecision(decision.id, chosen?.id ?? null, personId),
-                  )
-                }
-              >
-                {action.busy ? 'Wird freigegeben …' : 'Freigeben'}
-              </Button>
+            <>
               {chosen !== undefined && (
-                <p className="lg-chosen-line">
-                  <strong>{chosen.title}</strong>
-                  <span>
-                    {' '}
-                    · {formatMoney(chosen.cost_eur)} · {formatSigned(chosen.qty_gain)} · Ankunft{' '}
-                    {formatClock(chosen.arrives_at, timezone, now)}
-                  </span>
+                <p className="cd-chosen">
+                  You approve: <strong>{chosen.title}</strong>. Cost {formatMoney(chosen.cost_eur)},
+                  adds {formatSigned(chosen.qty_gain)}, arrives{' '}
+                  {formatClock(chosen.arrives_at, timezone, now)}.
+                  {hasDraft &&
+                    (live
+                      ? ' Lineguard then sends the mail draft of this case.'
+                      : ' Mail mode is "log only": Lineguard writes the mail to the log and sends nothing.')}
                 </p>
               )}
-              <RejectForm
-                label="Ablehnen"
-                busy={action.busy}
-                onReject={(reason) =>
-                  void action.run((personId) => api.rejectDecision(decision.id, reason, personId))
-                }
-              />
-            </div>
+              {isAlert && <p className="cd-chosen">
+                Acknowledging this alert does not arrange a delivery or send an email.
+              </p>}
+              <div className="cd-actions">
+                <Button
+                  variant="primary"
+                  large
+                  disabled={action.busy || (!isAlert && chosen === undefined)}
+                  onClick={() =>
+                    void action.run((personId) =>
+                      api.approveDecision(decision.id, chosen?.id ?? null, personId),
+                    )
+                  }
+                >
+                  {action.busy ? 'Working …' : isAlert ? 'Acknowledge' : 'Approve'}
+                </Button>
+                {!isAlert && <RejectForm
+                  label="Reject"
+                  busy={action.busy}
+                  onReject={(reason) =>
+                    void action.run((personId) => api.rejectDecision(decision.id, reason, personId))
+                  }
+                />}
+              </div>
+            </>
           ) : (
             <ApproverNote roles={roles} name={decision.approver_name} />
           )}
           <ErrorNote message={action.error} />
         </footer>
       ) : (
-        <p className="lg-closed-line">
+        <p className="cd-quiet">
           {decisionStatusWord(decision.status)}
-          {decider !== null && ` von ${decider}`}
+          {decider !== null && ` by ${decider}`}
           {decision.decided_at !== null && (
             <>
               {' '}
-              am <span className="lg-id">{formatClock(decision.decided_at, timezone, null)}</span>
+              on <span className="num">{formatClock(decision.decided_at, timezone, null)}</span>
             </>
           )}
-          {decision.reject_reason !== null && ` · Grund: ${decision.reject_reason}`}
+          {decision.reject_reason !== null && `. Reason: ${decision.reject_reason}`}
         </p>
       )}
     </section>

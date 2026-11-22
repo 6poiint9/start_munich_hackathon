@@ -17,7 +17,7 @@ from lineguard.coverage import watch
 
 
 def _number(value: float) -> str:
-    return f"{value:,.0f}".replace(",", ".")
+    return f"{value:,.0f}"
 
 
 def _rank(rt: runtime.Runtime, component: core.ComponentState) -> tuple[int, float]:
@@ -99,7 +99,11 @@ def _store_gaps(rt: runtime.Runtime, state: core.State, now: str) -> None:
         old = current.pop(component.component_id, None)
         case_id = _upsert_case(rt, component, position, now)
         detail = _gap_detail(component)
-        if old and abs(old["gap_qty"] - component.gap_qty) < 0.5:
+        if (old and abs(old["gap_qty"] - component.gap_qty) < 0.5
+                and db.loads(old["detail"], {}).get("short_lines") == detail["short_lines"]):
+            previous_detail = db.loads(old["detail"], {})
+            if "residual_parts" in previous_detail:
+                detail["residual_parts"] = previous_detail["residual_parts"]
             db.update(rt.conn, "gaps", rt.ws, old["id"], rank=position,
                       breaks_at=_iso(component.breaks_at), detail=detail,
                       evidence_fact_ids=_evidence(component), case_id=case_id)
@@ -170,9 +174,9 @@ def _gap_detail(component: core.ComponentState) -> dict[str, Any]:
 def _upsert_case(rt: runtime.Runtime, component: core.ComponentState, position: int, now: str) -> int:
     first = component.short_lines[0]
     units = sum(s["units_at_risk"] for s in component.short_lines)
-    label = rt.pack.labels.get("units", "Stück")
-    title = (f"{component.description}: {_number(-component.gap_qty)} fehlen, "
-             f"{_number(units)} {label} in Gefahr")
+    label = rt.pack.labels.get("units", "units")
+    title = (f"{component.description}: {_number(-component.gap_qty)} short, "
+             f"{_number(units)} {label} at risk")
     key = f"gap::{component.component_id}"
     existing = db.one(
         rt.conn, rt.ws,

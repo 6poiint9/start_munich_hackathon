@@ -3,7 +3,7 @@
   "id": 1,
   "kind": "gap",
   "rule": null,
-  "title": "Rahmen Alu: 50 fehlen, 50 Räder in Gefahr",
+  "title": "Aluminium frame: 50 short, 50 bikes at risk",
   "impact": "deadline_blocker",
   "state": "open",
   "rank": 1,
@@ -38,7 +38,7 @@
     {
      "reason": "booking_finding",
      "qty": 900.0,
-     "text": "Wareneingang WE-1001: 1.000 gebucht. 100 belegt",
+     "text": "Goods receipt WE-1001: 1,000 booked, documents show 100",
      "fact_ids": []
     }
    ],
@@ -58,7 +58,7 @@
   {
    "fact_id": 5,
    "fact_type": "stock_qty",
-   "label": "Bestand laut ERP",
+   "label": "Stock in the ERP",
    "qty": 1450.0,
    "value_num": null,
    "value_text": null,

@@ -128,6 +128,7 @@ function decision(
     status: 'open',
     options: [],
     recommended_option: null,
+    kind: null,
     needs_roles: ['buyer'],
     approver_role: 'buyer',
     approver_name: null,
@@ -143,10 +144,10 @@ function decision(
 function mail(fields: Pick<Email, 'id' | 'subject'> & Partial<Email>): Email {
   return {
     direction: 'out',
-    from_addr: 'einkauf@radwerk.example',
+    from_addr: 'purchasing@radwerk.example',
     to_addr: null,
     body: null,
-    language: 'de',
+    language: 'en',
     status: 'draft',
     routine: false,
     commits_money: false,
@@ -184,7 +185,7 @@ const OFFER_FILE = {id: 6, path: 'angebot-feinrohr.txt', version: 1};
 const receiptBooked = fact({
   fact_id: 11,
   fact_type: 'gr_qty',
-  label: 'Gebuchte Menge im Wareneingang',
+  label: 'Quantity booked in the goods receipt',
   qty: 1000,
   ref: 'WE-1001',
   po_number: '4500001',
@@ -198,7 +199,7 @@ const receiptBooked = fact({
 const noteQty = fact({
   fact_id: 12,
   fact_type: 'delivery_note_qty',
-  label: 'Menge auf dem Lieferschein',
+  label: 'Quantity on the delivery note',
   qty: 100,
   ref: 'LS-4711',
   po_number: '4500001',
@@ -215,7 +216,7 @@ const noteQty = fact({
 const orderQty = fact({
   fact_id: 13,
   fact_type: 'po_qty',
-  label: 'Bestellte Menge',
+  label: 'Ordered quantity',
   qty: 100,
   po_number: '4500001',
   source_rank: 3,
@@ -247,6 +248,7 @@ function receiptBundle(): Pick<CaseView, 'finding' | 'corrections'> {
       {
         id: 1,
         status: 'proposed',
+        writer: 'browser_demo',
         payload: {
           kind: 'gr_qty',
           gr_number: 'WE-1001',
@@ -270,7 +272,7 @@ function frameGap(): CaseView {
   const base = normalizeCase(caseJson);
   const caseSummary = summary({
     ...(base?.case ?? {id: 1, kind: 'gap'}),
-    title: 'Rahmen Alu: 50 fehlen, 50 Räder in Gefahr',
+    title: 'Aluminium frame: 50 short, 50 bikes at risk',
     state: 'plan_proposed',
     rank: 1,
     breaks_at: '2027-03-03T10:27:00Z',
@@ -287,7 +289,7 @@ function frameGap(): CaseView {
       fact({
         fact_id: 14,
         fact_type: 'offer',
-        label: 'Angebot Feinrohr: 60 Rahmen per Express',
+        label: 'Offer from Feinrohr: 60 frames by express',
         qty: 60,
         value_num: 4800,
         ref: 'ANG-2207',
@@ -305,7 +307,7 @@ function frameGap(): CaseView {
       option({
         id: 1,
         kind: 'accept_offer',
-        title: 'Angebot von Feinrohr annehmen: 60 Rahmen per Express',
+        title: 'Accept the offer from Feinrohr: 60 frames by express',
         qty_gain: 60,
         units_gained: {'BIKE-CITY': 50},
         arrives_at: '2027-03-02T13:00:00Z',
@@ -318,7 +320,7 @@ function frameGap(): CaseView {
       option({
         id: 2,
         kind: 'expedite_inbound',
-        title: 'Bestellung 4500002 bei Alurad beschleunigen',
+        title: 'Speed up purchase order 4500002 at Alurad',
         qty_gain: 50,
         units_gained: {'BIKE-CITY': 50},
         arrives_at: '2027-03-03T07:00:00Z',
@@ -330,24 +332,24 @@ function frameGap(): CaseView {
       option({
         id: 3,
         kind: 'reallocate',
-        title: 'Rahmen aus Werk Nord umlagern',
+        title: 'Move frames from the north plant',
         qty_gain: 20,
         cost_eur: 300,
         confidence: 0.9,
         feasible: false,
-        infeasible_reason: 'Werk Nord hat nur 20 Rahmen frei. Das schließt die Lücke nicht.',
+        infeasible_reason: 'The north plant has only 20 free frames. That does not close the shortage.',
       }),
     ],
     decisions: [
       decision({
         id: 1,
-        title: '60 Rahmen bei Feinrohr per Express bestellen',
+        title: 'Order 60 frames from Feinrohr by express',
         explanation:
-          'Es fehlen 50 Rahmen RAHMEN-01. Der Wareneingang WE-1001 ist um 900 zu hoch gebucht, deshalb zeigt das ERP keine Lücke. Das Angebot von Feinrohr kommt am Dienstag an, einen Tag vor dem Stopp der Linie. Die beschleunigte Bestellung bei Alurad ist billiger, aber noch nicht zugesagt. Sie bleibt als Absicherung im Plan.',
+          '50 frames RAHMEN-01 are short. Goods receipt WE-1001 is booked 900 too high, so the ERP shows no shortage. The offer from Feinrohr arrives on Tuesday, one day before the line stops. The faster delivery from Alurad costs less, but Alurad did not confirm it yet. It stays in the plan as a backup.',
         options: [1, 2, 3],
         recommended_option: 1,
         approver_name: 'Anna Beispiel',
-        policy_ref: 'freigaberegel.pdf, Abschnitt 2: bis 5.000 € entscheidet der Einkauf',
+        policy_ref: 'freigaberegel.pdf, section 2: purchasing decides up to €5,000',
         deadline: '2027-03-01T11:00:00Z',
       }),
     ],
@@ -355,19 +357,19 @@ function frameGap(): CaseView {
       mail({
         id: 1,
         to_addr: 'vertrieb@feinrohr.example',
-        subject: 'Bestellung 60 Rahmen RAHMEN-01 per Express (Angebot ANG-2207)',
-        body: 'Guten Tag Frau Rohr,\n\nwir nehmen Ihr Angebot ANG-2207 an und bestellen 60 Rahmen RAHMEN-01 per Express.\nBitte bestätigen Sie die Ankunft am Dienstag, 02.03., bis 14:00 Uhr an unserem Wareneingang.\n\nFreundliche Grüße\nEinkauf Radwerk Demo',
+        subject: 'Order of 60 frames RAHMEN-01 by express (offer ANG-2207)',
+        body: 'Dear Ms Rohr,\n\nWe accept your offer ANG-2207 and order 60 frames RAHMEN-01 by express.\nPlease confirm the arrival at our goods receipt on Tuesday, 2 March, by 14:00.\n\nKind regards\nPurchasing, Radwerk Demo',
         commits_money: true,
-        reason: 'Die Bestellung bindet 4.800 €. Sie geht erst nach deiner Freigabe raus.',
+        reason: 'This order commits €4,800. Lineguard sends it only after your approval.',
       }),
       mail({
         id: 2,
         to_addr: 'service@alurad.example',
-        subject: 'Bestellung 4500002: Ist eine Lieferung bis Mittwoch 08:00 möglich?',
-        body: 'Guten Tag Herr Felge,\n\nkönnen Sie die 50 Rahmen der Bestellung 4500002 bis Mittwoch, 03.03., 08:00 Uhr liefern?\nBitte nennen Sie uns den Aufpreis.\n\nFreundliche Grüße\nEinkauf Radwerk Demo',
+        subject: 'Purchase order 4500002: can you deliver by Wednesday 08:00?',
+        body: 'Dear Mr Felge,\n\nCan you deliver the 50 frames of purchase order 4500002 by Wednesday, 3 March, 08:00?\nPlease tell us the extra cost.\n\nKind regards\nPurchasing, Radwerk Demo',
         status: 'dry_run',
         routine: true,
-        reason: 'Routinefrage ohne Kosten.',
+        reason: 'Routine question without cost.',
         sent_at: '2027-03-01T06:10:00Z',
         created_at: '2027-03-01T06:10:00Z',
       }),
@@ -375,9 +377,9 @@ function frameGap(): CaseView {
         id: 3,
         direction: 'in',
         from_addr: 'service@alurad.example',
-        to_addr: 'einkauf@radwerk.example',
-        subject: 'AW: Bestellung 4500002: Ist eine Lieferung bis Mittwoch 08:00 möglich?',
-        body: 'Guten Tag,\n\nMittwoch 08:00 Uhr ist möglich, wenn die Spedition heute bis 15:00 Uhr den Auftrag bekommt. Aufpreis: 650 €. Eine feste Zusage kann ich erst am Nachmittag geben.\n\nViele Grüße\nF. Felge',
+        to_addr: 'purchasing@radwerk.example',
+        subject: 'RE: Purchase order 4500002: can you deliver by Wednesday 08:00?',
+        body: 'Hello,\n\nWednesday 08:00 is possible if the forwarder gets the order today by 15:00. Extra cost: €650. I can give a firm confirmation only this afternoon.\n\nBest regards\nF. Felge',
         status: 'received',
         created_at: '2027-03-01T06:42:00Z',
       }),
@@ -389,7 +391,7 @@ function receiptFinding(): CaseView {
   const caseSummary = summary({
     id: 2,
     kind: 'booking_finding',
-    title: 'Wareneingang WE-1001: 1.000 gebucht, 100 belegt',
+    title: 'Goods receipt WE-1001: 1,000 booked, documents show 100',
     state: 'open',
     rank: 2,
     impact: 'deadline_blocker',
@@ -410,7 +412,7 @@ function chainGap(): CaseView {
   const caseSummary = summary({
     id: 3,
     kind: 'gap',
-    title: 'Kette 7-fach: 20 fehlen, Nachlieferung läuft',
+    title: '7-speed chain: 20 short, a part delivery is on its way',
     state: 'in_execution',
     rank: 3,
     impact: 'deadline_blocker',
@@ -435,7 +437,7 @@ function chainGap(): CaseView {
       fact({
         fact_id: 21,
         fact_type: 'stock_qty',
-        label: 'Bestand laut ERP',
+        label: 'Stock in the ERP',
         qty: 160,
         as_of: '2027-02-28',
         source_rank: 4,
@@ -447,7 +449,7 @@ function chainGap(): CaseView {
       option({
         id: 4,
         kind: 'expedite_inbound',
-        title: 'Teillieferung 30 Ketten per Kurier',
+        title: 'Part delivery of 30 chains by courier',
         qty_gain: 30,
         units_gained: {'BIKE-TOUR': 20},
         arrives_at: '2027-03-03T12:00:00Z',
@@ -460,8 +462,8 @@ function chainGap(): CaseView {
     decisions: [
       decision({
         id: 2,
-        title: 'Teillieferung 30 Ketten per Kurier',
-        explanation: 'Das Kettenwerk hat 30 Ketten auf Lager und liefert sie per Kurier.',
+        title: 'Part delivery of 30 chains by courier',
+        explanation: 'Kettenwerk has 30 chains in stock and delivers them by courier.',
         status: 'approved',
         options: [4],
         recommended_option: 4,
@@ -474,8 +476,8 @@ function chainGap(): CaseView {
       mail({
         id: 4,
         to_addr: 'versand@kettenwerk.example',
-        subject: 'Teillieferung 30 Ketten KETTE-07 per Kurier',
-        body: 'Guten Tag,\n\nbitte senden Sie 30 Ketten KETTE-07 per Kurier. Ankunft bis Mittwoch 13:00 Uhr.\n\nFreundliche Grüße\nEinkauf Radwerk Demo',
+        subject: 'Part delivery of 30 chains KETTE-07 by courier',
+        body: 'Hello,\n\nPlease send 30 chains KETTE-07 by courier. They must arrive by Wednesday 13:00.\n\nKind regards\nPurchasing, Radwerk Demo',
         status: 'sent',
         commits_money: true,
         approved_by: 'P1',
@@ -486,9 +488,9 @@ function chainGap(): CaseView {
         id: 5,
         direction: 'in',
         from_addr: 'versand@kettenwerk.example',
-        to_addr: 'einkauf@radwerk.example',
-        subject: 'AW: Teillieferung 30 Ketten KETTE-07 per Kurier',
-        body: 'Guten Tag,\n\ndie 30 Ketten gehen morgen früh an den Kurier. Sendungsnummer folgt.\n\nViele Grüße\nKettenwerk Versand',
+        to_addr: 'purchasing@radwerk.example',
+        subject: 'RE: Part delivery of 30 chains KETTE-07 by courier',
+        body: 'Hello,\n\nThe 30 chains go to the courier tomorrow morning. The tracking number follows.\n\nBest regards\nKettenwerk shipping',
         status: 'received',
         created_at: '2027-02-28T16:05:00Z',
       }),
@@ -500,7 +502,7 @@ function saddleGap(): CaseView {
   const caseSummary = summary({
     id: 4,
     kind: 'gap',
-    title: 'Sattel Komfort: 10 fehlen, keine Quelle liefert rechtzeitig',
+    title: 'Comfort saddle: 10 short, no source delivers in time',
     state: 'unclosable',
     rank: 4,
     component_id: 'SATTEL-02',
@@ -521,7 +523,7 @@ function saddleGap(): CaseView {
         {
           reason: 'quality_hold',
           qty: 20,
-          text: 'Charge S-118: Naht gesperrt, Prüfung offen',
+          text: 'Batch S-118: seam blocked, inspection not finished',
           fact_ids: [],
         },
       ],
@@ -530,13 +532,13 @@ function saddleGap(): CaseView {
       option({
         id: 5,
         kind: 'alt_source',
-        title: 'Sattel bei Sitzgut bestellen',
+        title: 'Order saddles from Sitzgut',
         qty_gain: 10,
         arrives_at: '2027-03-09T08:00:00Z',
         cost_eur: 240,
         confidence: 0.6,
         feasible: false,
-        infeasible_reason: 'Ankunft erst am 09.03., also nach dem Stopp der Linie.',
+        infeasible_reason: 'The saddles arrive on 9 March. That is after the line stops.',
       }),
     ],
   });
@@ -547,7 +549,7 @@ function tireWatch(): CaseView {
     id: 5,
     kind: 'watch',
     rule: 'thin_and_stale',
-    title: 'Reifen 28 Zoll: Reserve nur 12, letzte Zählung vor 5 Wochen',
+    title: '28-inch tire: reserve of only 12, last stock count 5 weeks ago',
     state: 'open',
     rank: 5,
     component_id: 'REIFEN-28',
@@ -559,7 +561,7 @@ function tireWatch(): CaseView {
       fact({
         fact_id: 31,
         fact_type: 'stock_qty',
-        label: 'Bestand laut ERP',
+        label: 'Stock in the ERP',
         qty: 1212,
         as_of: '2027-02-28',
         source_rank: 4,
@@ -574,7 +576,7 @@ function doubleBooking(): CaseView {
   const caseSummary = summary({
     id: 6,
     kind: 'booking_finding',
-    title: 'Wareneingang WE-0990: Lenker doppelt gebucht',
+    title: 'Goods receipt WE-0990: handlebars booked twice',
     state: 'approved',
     rank: 6,
     component_id: 'LENKER-03',
@@ -600,6 +602,7 @@ function doubleBooking(): CaseView {
       {
         id: 2,
         status: 'handed_over',
+        writer: 'browser_demo',
         payload: {kind: 'gr_qty', gr_number: 'WE-0990'},
         approver_role: 'erp_owner',
         approved_by: 'P3',
@@ -639,7 +642,7 @@ export function createDemo(): DemoData {
     products: [
       {
         product_id: 'BIKE-CITY',
-        description: 'Stadtrad City',
+        description: 'City bike',
         demand: 700,
         packed: 100,
         still_to_pack: 600,
@@ -652,7 +655,7 @@ export function createDemo(): DemoData {
       },
       {
         product_id: 'BIKE-TOUR',
-        description: 'Tourenrad Tour',
+        description: 'Touring bike',
         demand: 300,
         packed: 120,
         still_to_pack: 180,
@@ -666,7 +669,7 @@ export function createDemo(): DemoData {
     ],
     first_stop: {
       component_id: 'RAHMEN-01',
-      description: 'Rahmen Alu',
+      description: 'Aluminium frame',
       breaks_at: '2027-03-03T10:27:00Z',
     },
     cases_now: views.slice(0, 4).map((entry) => entry.case),
@@ -683,7 +686,7 @@ export function createDemo(): DemoData {
       {
         event_id: 41,
         type: 'file.changed',
-        error: 'pruefbericht_sattel.pdf: Seite 2 ist nicht lesbar. Bitte von Hand prüfen.',
+        error: 'pruefbericht_sattel.pdf: page 2 is not readable. Check it by hand.',
       },
     ],
   };

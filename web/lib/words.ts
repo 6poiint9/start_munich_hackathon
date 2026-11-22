@@ -1,5 +1,5 @@
 /**
- * German words for the codes of the API.
+ * English words for the codes of the API.
  *
  * A code that this file does not know is shown as it is, with spaces for
  * underscores. A new code of the backend is therefore never hidden.
@@ -20,9 +20,9 @@ function lookup(words: ReadonlyMap<string, string>, code: string | null): string
 }
 
 const CASE_KINDS = new Map([
-  ['gap', 'Lücke'],
-  ['booking_finding', 'Buchungsbefund'],
-  ['watch', 'Wächter'],
+  ['gap', 'Shortage'],
+  ['booking_finding', 'Booking error'],
+  ['watch', 'Early warning'],
 ]);
 
 export function caseKindWord(kind: string | null): string {
@@ -30,14 +30,14 @@ export function caseKindWord(kind: string | null): string {
 }
 
 const CASE_STATES = new Map([
-  ['open', 'offen'],
-  ['plan_proposed', 'Plan liegt vor'],
-  ['approved', 'freigegeben'],
-  ['in_execution', 'in Arbeit'],
-  ['confirmed', 'bestätigt'],
-  ['closed', 'geschlossen'],
-  ['unclosable', 'nicht schließbar'],
-  ['dismissed', 'verworfen'],
+  ['open', 'Open'],
+  ['plan_proposed', 'Plan ready'],
+  ['approved', 'Approved'],
+  ['in_execution', 'In progress'],
+  ['confirmed', 'Confirmed'],
+  ['closed', 'Closed'],
+  ['unclosable', 'Cannot be closed'],
+  ['dismissed', 'Dismissed'],
 ]);
 
 const CASE_STATE_TONES = new Map<string, Tone>([
@@ -60,7 +60,7 @@ export function caseStateTone(state: string | null): Tone {
 }
 
 const RULES = new Map([
-  ['thin_and_stale', 'Dünne Reserve und alte Zählung'],
+  ['thin_and_stale', 'Small reserve and old stock count'],
 ]);
 
 export function ruleWord(rule: string | null): string {
@@ -68,12 +68,12 @@ export function ruleWord(rule: string | null): string {
 }
 
 const CAUSES = new Map([
-  ['decimal_shift', 'eine Null zu viel oder zu wenig'],
-  ['unit_mismatch', 'falsche Einheit'],
-  ['duplicate_booking', 'doppelt gebucht'],
-  ['unreferenced_receipt', 'Wareneingang ohne Bestellung'],
-  ['content_mismatch', 'Inhalt weicht vom gebuchten Teil ab'],
-  ['quantity_mismatch', 'Menge weicht ab'],
+  ['decimal_shift', 'one zero too many or too few'],
+  ['unit_mismatch', 'wrong unit'],
+  ['duplicate_booking', 'booked twice'],
+  ['unreferenced_receipt', 'goods receipt without a purchase order'],
+  ['content_mismatch', 'content differs from the booked part'],
+  ['quantity_mismatch', 'quantity differs'],
 ]);
 
 export function causeWord(cause: string | null): string {
@@ -81,14 +81,14 @@ export function causeWord(cause: string | null): string {
 }
 
 const CHECK_NAMES = new Map([
-  ['gr_vs_po', 'Bestellmenge'],
-  ['gr_vs_delivery_note', 'Menge auf dem Lieferschein'],
-  ['gr_vs_weight', 'Menge aus dem Gewicht'],
-  ['gr_vs_packages', 'Menge aus den Packstücken'],
-  ['gr_vs_history', 'Frühere Wareneingänge'],
-  ['duplicate', 'Doppelte Buchung'],
-  ['unreferenced', 'Bezug zu einer Bestellung'],
-  ['gr_note_exception', 'Bemerkung der Buchung'],
+  ['gr_vs_po', 'Ordered quantity'],
+  ['gr_vs_delivery_note', 'Quantity on the delivery note'],
+  ['gr_vs_weight', 'Quantity from the weight'],
+  ['gr_vs_packages', 'Quantity from the packages'],
+  ['gr_vs_history', 'Earlier goods receipts'],
+  ['duplicate', 'Double booking'],
+  ['unreferenced', 'Link to a purchase order'],
+  ['gr_note_exception', 'Note on the booking'],
 ]);
 
 export function checkNameWord(name: string): string {
@@ -96,9 +96,9 @@ export function checkNameWord(name: string): string {
 }
 
 const CHECK_STATUSES = new Map([
-  ['pass', 'passt'],
-  ['fail', 'weicht ab'],
-  ['no_data', 'keine Daten'],
+  ['pass', 'matches'],
+  ['fail', 'differs'],
+  ['no_data', 'no data'],
 ]);
 
 const CHECK_STATUS_TONES = new Map<string, Tone>([
@@ -116,10 +116,10 @@ export function checkStatusTone(status: string | null): Tone {
 }
 
 const FINDING_STATUSES = new Map([
-  ['proposed', 'Korrektur vorgeschlagen'],
-  ['needs_count', 'Zählung nötig'],
-  ['dismissed', 'verworfen'],
-  ['corrected', 'korrigiert'],
+  ['proposed', 'Correction proposed'],
+  ['needs_count', 'Stock count needed'],
+  ['dismissed', 'Dismissed'],
+  ['corrected', 'Corrected'],
 ]);
 
 export function findingStatusWord(status: string | null): string {
@@ -127,13 +127,13 @@ export function findingStatusWord(status: string | null): string {
 }
 
 const CORRECTION_STATUSES = new Map([
-  ['proposed', 'wartet auf Freigabe'],
-  ['approved', 'freigegeben'],
-  ['rejected', 'abgelehnt'],
-  ['handed_over', 'an ERP-Verantwortlichen übergeben'],
-  ['posted', 'im ERP gebucht'],
-  ['verified', 'im ERP bestätigt'],
-  ['failed', 'fehlgeschlagen'],
+  ['proposed', 'Waiting for approval'],
+  ['approved', 'Approved'],
+  ['rejected', 'Rejected'],
+  ['handed_over', 'Handed to the ERP owner'],
+  ['posted', 'Booked in the ERP'],
+  ['verified', 'Confirmed in the ERP'],
+  ['failed', 'Failed'],
 ]);
 
 const CORRECTION_STATUS_TONES = new Map<string, Tone>([
@@ -155,10 +155,10 @@ export function correctionStatusTone(status: string | null): Tone {
 }
 
 const DECISION_STATUSES = new Map([
-  ['open', 'offen'],
-  ['approved', 'freigegeben'],
-  ['rejected', 'abgelehnt'],
-  ['expired', 'abgelaufen'],
+  ['open', 'Open'],
+  ['approved', 'Approved'],
+  ['rejected', 'Rejected'],
+  ['expired', 'Expired'],
 ]);
 
 const DECISION_STATUS_TONES = new Map<string, Tone>([
@@ -177,15 +177,18 @@ export function decisionStatusTone(status: string | null): Tone {
 }
 
 const OPTION_KINDS = new Map([
-  ['release_held', 'Wartende Sendung abholen'],
-  ['accept_offer', 'Angebot annehmen'],
-  ['expedite_inbound', 'Zulauf beschleunigen'],
-  ['rework_sort', 'Gesperrte Charge sortieren'],
-  ['reallocate', 'Umverteilen'],
-  ['count_request', 'Zählung im Lager'],
-  ['alt_source', 'Anderer Lieferant'],
-  ['add_capacity', 'Mehr Kapazität'],
-  ['deliver_after_deadline', 'Nach der Frist liefern'],
+  ['release_held', 'Collect held shipment'],
+  ['accept_offer', 'Accept offer'],
+  ['expedite_inbound', 'Speed up delivery'],
+  ['rework_sort', 'Sort blocked batch'],
+  ['reallocate', 'Reallocate stock'],
+  ['count_request', 'Stock count'],
+  ['confirm_terms', 'Confirm supplier condition'],
+  ['erp_correction', 'ERP correction'],
+  ['alt_source', 'Other supplier'],
+  ['add_capacity', 'More capacity'],
+  ['deliver_after_deadline', 'Deliver after the deadline'],
+  ['unclosable_gap', 'Shortage alert'],
 ]);
 
 export function optionKindWord(kind: string | null): string {
@@ -193,8 +196,8 @@ export function optionKindWord(kind: string | null): string {
 }
 
 const PLAN_ROLES = new Map([
-  ['primary', 'Empfehlung'],
-  ['backup', 'Absicherung'],
+  ['primary', 'Recommended'],
+  ['backup', 'Backup'],
 ]);
 
 /** The part an option plays in the plan. `null` when it plays none. */
@@ -203,13 +206,13 @@ export function planRoleWord(role: string | null): string | null {
 }
 
 const EMAIL_STATUSES = new Map([
-  ['draft', 'Entwurf'],
-  ['approved', 'freigegeben, wird gesendet'],
-  ['sent', 'gesendet'],
-  ['dry_run', 'nur im Protokoll'],
-  ['received', 'Antwort'],
-  ['failed', 'Versand fehlgeschlagen'],
-  ['discarded', 'verworfen'],
+  ['draft', 'Draft'],
+  ['approved', 'Approved, sending'],
+  ['sent', 'Sent'],
+  ['dry_run', 'Logged, not sent'],
+  ['received', 'Reply'],
+  ['failed', 'Sending failed'],
+  ['discarded', 'Discarded'],
 ]);
 
 const EMAIL_STATUS_TONES = new Map<string, Tone>([
@@ -231,9 +234,9 @@ export function emailStatusTone(status: string | null): Tone {
 }
 
 const MAIL_MODES = new Map([
-  ['DRY_RUN', 'Mails nur im Protokoll'],
-  ['LIVE', 'Mails werden gesendet'],
-  ['REPLAY', 'Mails aus der Aufzeichnung'],
+  ['DRY_RUN', 'Mail: log only'],
+  ['LIVE', 'Mail: sending'],
+  ['REPLAY', 'Mail: replay'],
 ]);
 
 export function mailModeWord(mode: string | null): string {
@@ -241,11 +244,11 @@ export function mailModeWord(mode: string | null): string {
 }
 
 const ROLES = new Map([
-  ['buyer', 'Einkauf'],
-  ['category_lead', 'Leitung Warengruppe'],
-  ['erp_owner', 'ERP-Verantwortung'],
-  ['site_lead', 'Standortleitung'],
-  ['procurement_head', 'Leitung Einkauf'],
+  ['buyer', 'Purchasing'],
+  ['category_lead', 'Category lead'],
+  ['erp_owner', 'ERP owner'],
+  ['site_lead', 'Site lead'],
+  ['procurement_head', 'Head of purchasing'],
 ]);
 
 export function roleWord(role: string | null): string {
@@ -253,26 +256,26 @@ export function roleWord(role: string | null): string {
 }
 
 const SOURCE_RANKS = new Map([
-  [1, 'Beleg'],
-  [2, 'Dokument'],
-  [3, 'ERP-Bewegung'],
-  [4, 'ERP-Bestand'],
-  [5, 'Liste'],
+  [1, 'Signed document'],
+  [2, 'Document'],
+  [3, 'ERP movement'],
+  [4, 'ERP stock'],
+  [5, 'List'],
 ]);
 
 export function sourceRankWord(rank: number | null): string {
   if (rank === null) {
-    return 'Quelle unbekannt';
+    return 'Source unknown';
   }
-  return SOURCE_RANKS.get(rank) ?? `Rang ${rank}`;
+  return SOURCE_RANKS.get(rank) ?? `Rank ${rank}`;
 }
 
 const READERS = new Map([
   ['parser', 'Parser'],
-  ['llm', 'Sprachmodell'],
-  ['ocr', 'Texterkennung'],
-  ['vision', 'Bilderkennung'],
-  ['human', 'Mensch'],
+  ['llm', 'Language model'],
+  ['ocr', 'Text recognition'],
+  ['vision', 'Image recognition'],
+  ['human', 'Person'],
 ]);
 
 export function readerWord(reader: string | null): string {
@@ -280,12 +283,12 @@ export function readerWord(reader: string | null): string {
 }
 
 const BLOCK_REASONS = new Map([
-  ['booking_finding', 'Buchungsbefund'],
-  ['quality_hold', 'Qualitätssperre'],
-  ['inspection_failed', 'Prüfung nicht bestanden'],
-  ['wrong_revision', 'Falsche Revision'],
-  ['expired', 'Abgelaufen'],
-  ['not_released', 'Nicht freigegeben'],
+  ['booking_finding', 'Booking error'],
+  ['quality_hold', 'Quality hold'],
+  ['inspection_failed', 'Inspection failed'],
+  ['wrong_revision', 'Wrong revision'],
+  ['expired', 'Expired'],
+  ['not_released', 'Not released'],
 ]);
 
 export function blockReasonWord(reason: string | null): string {
@@ -293,8 +296,8 @@ export function blockReasonWord(reason: string | null): string {
 }
 
 const DEMAND_CLASSES = new Map([
-  ['preorder', 'Vorbestellung'],
-  ['open_sale', 'Freier Verkauf'],
+  ['preorder', 'Pre-order'],
+  ['open_sale', 'Open sale'],
 ]);
 
 export function demandClassWord(demandClass: string | null): string {
@@ -302,11 +305,11 @@ export function demandClassWord(demandClass: string | null): string {
 }
 
 const ACTION_TYPES = new Map([
-  ['count_request', 'Zählung im Lager'],
+  ['count_request', 'Stock count'],
   ['email', 'Mail'],
-  ['pickup_request', 'Abholung'],
-  ['purchase_order', 'Bestellung'],
-  ['erp_correction', 'ERP-Korrektur'],
+  ['pickup_request', 'Pickup'],
+  ['purchase_order', 'Purchase order'],
+  ['erp_correction', 'ERP correction'],
 ]);
 
 export function actionTypeWord(type: string | null): string {
@@ -314,12 +317,12 @@ export function actionTypeWord(type: string | null): string {
 }
 
 const ACTION_STATUSES = new Map([
-  ['awaiting_approval', 'wartet auf Freigabe'],
-  ['proposed', 'vorgeschlagen'],
-  ['approved', 'freigegeben'],
-  ['sent', 'gesendet'],
-  ['done', 'erledigt'],
-  ['failed', 'fehlgeschlagen'],
+  ['awaiting_approval', 'Waiting for approval'],
+  ['proposed', 'Proposed'],
+  ['approved', 'Approved'],
+  ['sent', 'Sent'],
+  ['done', 'Done'],
+  ['failed', 'Failed'],
 ]);
 
 export function actionStatusWord(status: string | null): string {
@@ -327,31 +330,31 @@ export function actionStatusWord(status: string | null): string {
 }
 
 const EVENT_TYPES = new Map([
-  ['file.added', 'Datei neu'],
-  ['file.changed', 'Datei geändert'],
-  ['file.removed', 'Datei entfernt'],
-  ['facts.updated', 'Fakten gelesen'],
-  ['finding.created', 'Buchungsbefund gefunden'],
-  ['correction.proposed', 'Korrektur vorgeschlagen'],
-  ['correction.approved', 'Korrektur freigegeben'],
-  ['correction.rejected', 'Korrektur abgelehnt'],
-  ['correction.verified', 'Korrektur im ERP bestätigt'],
-  ['count.requested', 'Zählung angefordert'],
-  ['gap.changed', 'Lücke neu berechnet'],
-  ['gap.unclosable', 'Lücke nicht schließbar'],
-  ['gap.closed', 'Lücke geschlossen'],
-  ['option.created', 'Option gefunden'],
-  ['option.changed', 'Option geändert'],
-  ['decision.created', 'Entscheidung vorbereitet'],
-  ['decision.approved', 'Entscheidung freigegeben'],
-  ['decision.rejected', 'Entscheidung abgelehnt'],
-  ['decision.escalated', 'Entscheidung eskaliert'],
-  ['email.drafted', 'Mail entworfen'],
-  ['email.sent', 'Mail gesendet'],
-  ['email.discarded', 'Mail verworfen'],
-  ['email.received', 'Mail empfangen'],
-  ['sync.requested', 'Prüfung der Quelle'],
-  ['tick', 'Takt'],
+  ['file.added', 'File added'],
+  ['file.changed', 'File changed'],
+  ['file.removed', 'File removed'],
+  ['facts.updated', 'Facts read'],
+  ['finding.created', 'Booking error found'],
+  ['correction.proposed', 'Correction proposed'],
+  ['correction.approved', 'Correction approved'],
+  ['correction.rejected', 'Correction rejected'],
+  ['correction.verified', 'Correction confirmed in the ERP'],
+  ['count.requested', 'Stock count requested'],
+  ['gap.changed', 'Shortage recalculated'],
+  ['gap.unclosable', 'Shortage cannot be closed'],
+  ['gap.closed', 'Shortage closed'],
+  ['option.created', 'Option found'],
+  ['option.changed', 'Option changed'],
+  ['decision.created', 'Decision prepared'],
+  ['decision.approved', 'Decision approved'],
+  ['decision.rejected', 'Decision rejected'],
+  ['decision.escalated', 'Decision escalated'],
+  ['email.drafted', 'Mail drafted'],
+  ['email.sent', 'Mail sent'],
+  ['email.discarded', 'Mail discarded'],
+  ['email.received', 'Mail received'],
+  ['sync.requested', 'Source check'],
+  ['tick', 'Timer'],
 ]);
 
 export function eventTypeWord(type: string | null): string {
@@ -359,10 +362,10 @@ export function eventTypeWord(type: string | null): string {
 }
 
 const EVENT_STATUSES = new Map([
-  ['pending', 'wartet'],
-  ['processing', 'läuft'],
-  ['done', 'erledigt'],
-  ['failed', 'fehlgeschlagen'],
+  ['pending', 'Waiting'],
+  ['processing', 'Running'],
+  ['done', 'Done'],
+  ['failed', 'Failed'],
 ]);
 
 const EVENT_STATUS_TONES = new Map<string, Tone>([
@@ -382,13 +385,13 @@ export function eventStatusTone(status: string | null): Tone {
 
 let languageNames: Intl.DisplayNames | null = null;
 
-/** `en` becomes `Englisch`. */
+/** `de` becomes `German`. */
 export function languageWord(code: string | null): string {
   if (code === null) {
-    return 'Sprache unbekannt';
+    return 'language unknown';
   }
   try {
-    languageNames ??= new Intl.DisplayNames('de', {type: 'language'});
+    languageNames ??= new Intl.DisplayNames('en', {type: 'language'});
     return languageNames.of(code) ?? code;
   } catch {
     return code;
@@ -398,27 +401,27 @@ export function languageWord(code: string | null): string {
 /** How sure an option is, in words. The limits follow docs/lueckenschluss.md. */
 export function confidenceWord(confidence: number | null): string {
   if (confidence === null) {
-    return 'unbekannt';
+    return 'unknown';
   }
   if (confidence >= 0.85) {
-    return 'mit Beleg';
+    return 'with a document';
   }
   if (confidence >= 0.5) {
-    return 'Aussage ohne Beleg';
+    return 'statement without a document';
   }
-  return 'noch keine Antwort';
+  return 'no answer yet';
 }
 
-/** `row 3, column qty` becomes `Zeile 3, Spalte qty`. */
+const IMPACTS = new Map([
+  ['deadline_blocker', 'blocks the deadline'],
+]);
+
+/** What a case does to the plan. `null` when the backend names no impact. */
+export function impactWord(impact: string | null): string | null {
+  return impact === null ? null : lookup(IMPACTS, impact);
+}
+
+/** A locator of the backend, for example `row 3, column qty`. It is English already. */
 export function locatorWord(locator: string | null): string | null {
-  if (locator === null) {
-    return null;
-  }
-  return locator
-    .replace(/\bsheet\b/gi, 'Blatt')
-    .replace(/\brow\b/gi, 'Zeile')
-    .replace(/\bcolumn\b/gi, 'Spalte')
-    .replace(/\bpage\b/gi, 'Seite')
-    .replace(/\bcell\b/gi, 'Zelle')
-    .replace(/\bline\b/gi, 'Zeile');
+  return locator;
 }

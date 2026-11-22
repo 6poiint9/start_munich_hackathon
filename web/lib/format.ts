@@ -1,11 +1,11 @@
 /**
- * German formats for numbers, money and times.
+ * English formats for numbers, money and times.
  *
  * Every function accepts `null` and returns a dash, so a field that the
  * backend did not send never breaks a line of the page.
  */
 
-const LOCALE = 'de-DE';
+const LOCALE = 'en-GB';
 const DASH = '–';
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
@@ -34,7 +34,7 @@ const percentFormat = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 1,
 });
 
-/** `1234.5` becomes `1.234,5`. */
+/** `1234.5` becomes `1,234.5`. */
 export function formatCount(value: number | null): string {
   return value === null ? DASH : countFormat.format(value);
 }
@@ -44,7 +44,7 @@ export function formatSigned(value: number | null): string {
   return value === null ? DASH : signedFormat.format(value);
 }
 
-/** `16800` becomes `16.800 €`. Cents show only when the amount has cents. */
+/** `16800` becomes `€16,800`. Cents show only when the amount has cents. */
 export function formatMoney(value: number | null): string {
   if (value === null) {
     return DASH;
@@ -53,12 +53,12 @@ export function formatMoney(value: number | null): string {
   return format.format(value);
 }
 
-/** `0.929` becomes `92,9 %`. */
+/** `0.929` becomes `92.9%`. */
 export function formatPercent(ratio: number | null): string {
   return ratio === null ? DASH : percentFormat.format(ratio);
 }
 
-/** The distance between two ratios in percentage points: `15,7`. */
+/** The distance between two ratios in percentage points: `15.7`. */
 export function formatPoints(ratioDistance: number): string {
   return countFormat.format(Math.abs(ratioDistance) * 100);
 }
@@ -97,7 +97,7 @@ function clockFormat(timezone: string): Intl.DateTimeFormat {
   const options: Intl.DateTimeFormatOptions = {
     weekday: 'short',
     day: '2-digit',
-    month: '2-digit',
+    month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
@@ -120,7 +120,7 @@ function clockParts(date: Date, timezone: string): ClockParts {
     found.set(part.type, part.value);
   }
   return {
-    weekday: (found.get('weekday') ?? '').replace('.', ''),
+    weekday: found.get('weekday') ?? '',
     day: found.get('day') ?? '',
     month: found.get('month') ?? '',
     year: found.get('year') ?? '',
@@ -130,9 +130,9 @@ function clockParts(date: Date, timezone: string): ClockParts {
 }
 
 /**
- * A moment as a clock time with weekday: `So 11:27`.
+ * A moment as a clock time with weekday: `Sun 11:27`.
  *
- * The date is added (`Fr 12.03. 16:00`) when the moment is so far from `now`
+ * The date is added (`Fri 12 Mar 16:00`) when the moment is so far from `now`
  * that the weekday alone is not clear. A text with only a date has no time.
  */
 export function formatClock(
@@ -146,7 +146,7 @@ export function formatClock(
   }
   if (DATE_ONLY.test(iso.trim())) {
     const parts = clockParts(date, 'UTC');
-    return `${parts.weekday} ${parts.day}.${parts.month}.`;
+    return `${parts.weekday} ${parts.day} ${parts.month}`;
   }
   const parts = clockParts(date, timezone);
   const reference = parseInstant(now);
@@ -156,15 +156,15 @@ export function formatClock(
   const time = `${parts.hour}:${parts.minute}`;
   return weekdayIsClear
     ? `${parts.weekday} ${time}`
-    : `${parts.weekday} ${parts.day}.${parts.month}. ${time}`;
+    : `${parts.weekday} ${parts.day} ${parts.month} ${time}`;
 }
 
-/** A moment with weekday, date and time: `Mo 01.03. 08:00`. */
+/** A moment with weekday, date and time: `Mon 01 Mar 08:00`. */
 export function formatStamp(iso: string | null, timezone: string): string {
   return formatClock(iso, timezone, null);
 }
 
-/** A calendar date: `28.02.2027`. */
+/** A calendar date: `28 Feb 2027`. */
 export function formatDate(iso: string | null, timezone: string): string {
   const date = parseInstant(iso);
   if (iso === null || date === null) {
@@ -172,7 +172,7 @@ export function formatDate(iso: string | null, timezone: string): string {
   }
   const zone = DATE_ONLY.test(iso.trim()) ? 'UTC' : timezone;
   const parts = clockParts(date, zone);
-  return `${parts.day}.${parts.month}.${parts.year}`;
+  return `${parts.day} ${parts.month} ${parts.year}`;
 }
 
 /** True when `iso` lies before `now`. Unknown moments are never past. */
@@ -188,14 +188,14 @@ export function isPast(iso: string | null, now: string | null): boolean {
   return date.getTime() < reference.getTime();
 }
 
-/** A length of time in two units at most: `2 T 3 h`, `1 h 50 min`, `12 min`. */
+/** A length of time in two units at most: `2 d 3 h`, `1 h 50 min`, `12 min`. */
 export function formatDuration(milliseconds: number): string {
   const total = Math.abs(milliseconds);
   const days = Math.floor(total / DAY_MS);
   const hours = Math.floor((total % DAY_MS) / HOUR_MS);
   const minutes = Math.floor((total % HOUR_MS) / MINUTE_MS);
   if (days > 0) {
-    return hours > 0 ? `${days} T ${hours} h` : `${days} T`;
+    return hours > 0 ? `${days} d ${hours} h` : `${days} d`;
   }
   if (hours > 0) {
     return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
@@ -203,7 +203,7 @@ export function formatDuration(milliseconds: number): string {
   return `${Math.max(minutes, 1)} min`;
 }
 
-/** The time from `now` to `iso`: `in 2 T 3 h` or `seit 1 h 50 min`. */
+/** The time from `now` to `iso`: `in 2 d 3 h` or `1 h 50 min ago`. */
 export function formatDistance(
   iso: string | null,
   now: string | null,
@@ -215,7 +215,7 @@ export function formatDistance(
   }
   const distance = date.getTime() - reference.getTime();
   const length = formatDuration(distance);
-  return distance >= 0 ? `in ${length}` : `seit ${length}`;
+  return distance >= 0 ? `in ${length}` : `${length} ago`;
 }
 
 /** The age of something that began at `iso`: `1 h 50 min`. */
@@ -228,7 +228,7 @@ export function formatAge(iso: string | null, now: string | null): string | null
   return formatDuration(Math.max(reference.getTime() - date.getTime(), 0));
 }
 
-/** German plural: `plural(1, 'Fall', 'Fälle')` gives `1 Fall`. */
+/** A count with its noun: `plural(1, 'case', 'cases')` gives `1 case`. */
 export function plural(count: number, one: string, many: string): string {
   return `${formatCount(count)} ${count === 1 ? one : many}`;
 }
