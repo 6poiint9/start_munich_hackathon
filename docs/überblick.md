@@ -44,21 +44,21 @@ Any company that brings parts from several suppliers together at one site for a 
 
 What do our agents do:
 Do agents take real actions (decide, write, escalate)? Yes.
-• Decide: the Decision agent builds a plan for each gap, with price, deadline and the person who must approve.
-• Write: the Action agent (lineguard/agents/action.py) drafts supplier mails, sends them, matches the replies to the thread and follows up when no answer comes.
-• Escalate: the policy engine (lineguard/policy/engine.py) routes each decision by value and type, and passes it to the next role when needed.
-• Correct: it prepares the ERP correction (connectors/erp_writer.py).
-• Limits to say openly: a person approves anything that commits money. Mail runs in DRY_RUN by default. The ERP write-back is a correction file today, not a direct SAP connection.
+- Decide: the Decision agent builds a plan for each gap, with price, deadline and the person who must approve.
+- Write: the Action agent (lineguard/agents/action.py) drafts supplier mails, sends them, matches the replies to the thread and follows up when no answer comes.
+- Escalate: the policy engine (lineguard/policy/engine.py) routes each decision by value and type, and passes it to the next role when needed.
+- Correct: it prepares the ERP correction (connectors/erp_writer.py).
+- Limits to say openly: a person approves anything that commits money. Mail runs in DRY_RUN by default. The ERP write-back is a correction file today, not a direct SAP connection.
 Solid architecture, not one big prompt? Yes.
-• Five agents: Watcher, Reader, Stock Truth, Decision and Action work on one shared state in SQLite. An event table is the queue between them.
-• Code computes: every number comes from plain code. The LLM only reads documents and writes drafts, through one entry point with cache, retries and a call log (lineguard/llm.py).
-• Rules are data: approval rules are evaluated by code. No prompt decides who may approve.
-• Evidence: each number on the page links to its fact, its file and the place in the file.
+Five agents: Watcher, Reader, Stock Truth, Decision and Action work on one shared state in SQLite. An event table is the queue between them.
+- Code computes: every number comes from plain code. The LLM only reads documents and writes drafts, through one entry point with cache, retries and a call log (lineguard/llm.py).
+- Rules are data: approval rules are evaluated by code. No prompt decides who may approve.
+- Evidence: each number on the page links to its fact, its file and the place in the file.
 Messy data, nothing hardcoded? Yes.
-• Formats: the Reader handles tables, PDFs and scans, including handwriting.
-• Contradictions: a source ranking decides which source wins. For the art book, the handwritten note beats the ERP booking.
-• No customer values in the core: all of Soony's values sit in a pack folder. tests/test_no_customer_values.py fails if a customer value appears in the core, and a second invented customer (demo_bikes) runs on the same core.
-• Untrusted content: an instruction inside a document is flagged and counts in no calculation (tests/test_untrusted.py).
+- Formats: the Reader handles tables, PDFs and scans, including handwriting.
+- Contradictions: a source ranking decides which source wins. For the art book, the handwritten note beats the ERP booking.
+- No customer values in the core: all of Soony's values sit in a pack folder. tests/test_no_customer_values.py fails if a customer value appears in the core, and a second invented customer (demo_bikes) runs on the same core.
+- Untrusted content: an instruction inside a document is flagged and counts in no calculation (tests/test_untrusted.py).
 
 Pricing for Sooney:
 My proposal is a subscription per site of about €5,000 per month, so about €60,000 per year for the Hamburg site. That is less than a third of the goods value of the art book case alone.
