@@ -42,9 +42,9 @@ Felder von `cases/{id}`:
 
 ## Schreiben
 
-Jeder schreibende Aufruf braucht den Header `X-Lineguard-User: <person_id>`. Ohne Header antwortet die API mit HTTP 401. Mit einer Person ohne passende Rolle antwortet sie mit HTTP 403 und `detail` „This approval needs the role <rolle>“. Die Oberfläche zeigt nur die Knöpfe, die die gewählte Person klicken darf. Dafür vergleicht sie `people[].roles` mit `needs_roles` oder `approver_role`.
+Jeder schreibende Aufruf braucht den Header `X-Lineguard-User: <person_id>`. Ohne Header antwortet die API mit HTTP 401. Eine unbekannte Person erhält HTTP 403. Jede bekannte Person kann Entscheidungen, Mails und ERP-Korrekturen freigeben. Für Ablehnen, Verwerfen und Zählen gelten weiter die Rollenregeln. Die Personenauswahl ist kein Login.
 
-Email approval uses the current role of the linked decision. If an option expires, leaves the plan, or its gap closes, approval returns HTTP 409. No email is sent.
+If an option expires, leaves the plan, or its gap closes, approval returns HTTP 409. No email is sent. If mail delivery fails, the API returns HTTP 502 and records the mail as failed. The decision stays approved. Check the mailbox before sending again because delivery can be uncertain. Lineguard does not retry the failed approval automatically.
 
 An `unclosable_gap` decision is a shortage alert for the highest role in the escalation chain. The alert does not confirm a later date or cost. Approving it records an acknowledgment. It does not arrange a delivery or send an email. The case stays open while the shortage remains.
 
@@ -60,7 +60,7 @@ For an ERP correction, `approvals[]` includes `correction_payload` and `erp_writ
 | `POST /decisions/{id}/reject` | `{"reason": "…"}` | Entscheidung ablehnen. Der Grund ist Pflicht |
 | `POST /emails/{id}/approve` | `{"subject": "…", "body": "…"}`, beide optional | Entwurf senden, bei `DRY_RUN` nur ins Protokoll |
 | `POST /emails/{id}/discard` | — | Entwurf verwerfen |
-| `POST /corrections/{id}/approve` | — | Korrektur fürs ERP freigeben, nur Rolle `erp_owner` |
+| `POST /corrections/{id}/approve` | — | Korrektur fürs ERP freigeben |
 | `POST /corrections/{id}/reject` | `{"reason": "…"}` | Korrektur ablehnen. Der Grund ist Pflicht |
 | `POST /corrections/{id}/count` | — | Zählung im Lager anfordern |
 | `POST /sync` | — | Quelle jetzt prüfen. Antwort `{"changes": [...]}` |
@@ -81,7 +81,7 @@ Jede Antwort auf einen schreibenden Aufruf ist das geänderte Objekt.
 | `case_id` | The case with the evidence |
 | `kind` | Kind of the recommended option, for example `confirm_terms`, or `erp_correction` |
 | `title`, `summary` | Text for the person |
-| `needs_roles`, `approver_name` | Who can approve |
+| `needs_roles`, `approver_name` | Suggested owner and roles for rejection |
 | `deadline`, `arrives_at` | Time limits as ISO text |
 | `cost_eur`, `cost_unknown` | The cost. `cost_unknown` is true when the document names no cost |
 | `commits_money` | True when the approval binds the company |
@@ -91,4 +91,4 @@ Jede Antwort auf einen schreibenden Aufruf ist das geänderte Objekt.
 
 `approvals_done[]` lists the last five clicks with `title`, `status`, `decided_by`, `decided_at`, `mail_status` and `mail_to`.
 
-The option kind `confirm_terms` comes from the fact type `supplier_condition`. A supplier holds finished goods until the customer confirms a term in writing. The mail for this option always needs an approval. A rule with `applies_to: supplier_terms` in `approval_policy.yaml` names the role. Without that rule, the rule for `purchase_order` applies with the value of the order line.
+The option kind `confirm_terms` comes from the fact type `supplier_condition`. A supplier holds finished goods until the customer confirms a term in writing. The mail for this option always needs an approval. A rule with `applies_to: supplier_terms` in `approval_policy.yaml` names the suggested role. Without that rule, the rule for `purchase_order` applies with the value of the order line.

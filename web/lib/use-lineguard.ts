@@ -27,10 +27,9 @@ export function useLineguard(): Lineguard {
   const [view, setView] = useState<CaseView | null>(null);
   const [events, setEvents] = useState<LogEvent[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [mock, setMock] = useState(api.isMock());
+  const mock = api.isMock();
   const [offline, setOffline] = useState<string | null>(null);
   const selected = useRef<number | null>(null);
-  const loaded = useRef(false);
 
   const loadCase = useCallback(async (id: number) => {
     try {
@@ -49,15 +48,9 @@ export function useLineguard(): Lineguard {
     try {
       next = await api.getState();
     } catch (error) {
-      if (loaded.current || api.isMock()) {
-        setOffline(errorMessage(error));
-        return;
-      }
-      api.enableMock();
-      setMock(true);
-      next = await api.getState();
+      setOffline(errorMessage(error));
+      return;
     }
-    loaded.current = true;
     setOffline(null);
     setState(next);
     const ids = [...next.cases_now, ...next.cases_later].map((entry) => entry.id);

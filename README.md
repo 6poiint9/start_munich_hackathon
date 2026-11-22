@@ -46,7 +46,8 @@ The configured LLM receives document text and images. Do not send customer data 
 
 - The Soony ERP exports are read as files. Approved ERP corrections are saved as local JSON and CSV proposals. They do not update SAP.
 - `DRY_RUN` does not send mail. Routine mail can run automatically only when the customer pack allows it. Orders and other binding mail need approval.
-- Person selection applies role rules but is not a login. Do not expose the app publicly without access control.
+- Any known person can approve. Rejection, discarding and count requests still use role rules. Person selection is not a login.
+- If mail delivery fails, the decision stays approved. Check the mailbox before sending again to avoid a duplicate order.
 - The frozen Soony files were opened locally. Their full contents and the complete document-to-action flow were not verified.
 - The reader splits long text into parts and sends PDF pages with little text to a vision model. Text split across parts and images on text-heavy pages can be missed. Review important evidence.
 - Multi-product state totals and the remaining watcher and shortage rules need further end-to-end verification.
@@ -57,7 +58,7 @@ The configured LLM receives document text and images. Do not send customer data 
 2. Five agents work on one shared state in SQLite. An event table is the queue. The Watcher finds new and replaced files. The Reader turns each file into facts with evidence. Stock Truth computes coverage, gaps and the moment a line stops. The Decision agent builds a plan for each gap. The Action agent writes and sends supplier mails and reads the replies.
 3. Calculations use code. The LLM reads documents and writes drafts. Cases link to their available facts and source files.
 4. Content from outside is data. An instruction in a document is flagged and counts in no calculation.
-5. The pack defines approval rules. The API checks the selected person's role, but does not authenticate that person.
+5. The pack defines suggested owners and role rules. The API records the selected person but does not authenticate that person.
 
 `architecture.md` is the overview. `docs/umsetzung.md` lists the build steps. `docs/api.md` describes the API for the page. `docs/deploy.md` describes how to run Lineguard on a server with Docker.
 

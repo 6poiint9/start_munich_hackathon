@@ -17,6 +17,7 @@ from lineguard import runtime
 from lineguard import views
 from lineguard.agents import watcher
 from lineguard.connectors import blob as blob_module
+from lineguard.connectors import mail as mail_module
 from lineguard.connectors import source as source_module
 from lineguard.policy import engine
 
@@ -116,6 +117,10 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
             raise fastapi.HTTPException(404, "Not found") from error
         except approvals.StateError as error:
             raise fastapi.HTTPException(409, str(error)) from error
+        except mail_module.MailError as error:
+            raise fastapi.HTTPException(
+                502, "Mail delivery could not be confirmed. Check the mailbox before sending again."
+            ) from error
 
     @app.get("/events")
     def get_events(limit: int = 50, rt: runtime.Runtime = runtime_dependency) -> list[dict[str, Any]]:
@@ -136,7 +141,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
 
     @app.post("/corrections/{correction_id}/approve")
     def approve_correction(correction_id: int, request: fastapi.Request, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
-        person = current_person(rt, request, ["erp_owner"])
+        person = current_person(rt, request, None)
         return run(approvals.approve_correction, rt, correction_id, person)
 
     @app.post("/corrections/{correction_id}/reject")
@@ -151,8 +156,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
 
     @app.post("/decisions/{decision_id}/approve")
     def approve_decision(decision_id: int, request: fastapi.Request, body: dict[str, Any] | None = None, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
-        roles = run(approvals.decision_roles, rt, decision_id)
-        person = current_person(rt, request, roles)
+        person = current_person(rt, request, None)
         return run(approvals.approve_decision, rt, decision_id, person,
                    (body or {}).get("option_id"))
 
@@ -164,7 +168,7 @@ def create_app(pack: pack_module.PackConfig | None = None, lifespan: Any = None,
 
     @app.post("/emails/{email_id}/approve")
     def approve_email(email_id: int, request: fastapi.Request, body: dict[str, Any] | None = None, rt: runtime.Runtime = runtime_dependency) -> dict[str, Any]:
-        person = current_person(rt, request, run(approvals.email_roles, rt, email_id))
+        person = current_person(rt, request, None)
         body = body or {}
         return run(approvals.approve_email, rt, email_id, person,
                    body.get("subject"), body.get("body"))

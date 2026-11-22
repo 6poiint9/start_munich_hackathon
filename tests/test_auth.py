@@ -21,15 +21,18 @@ def test_approval_without_header_is_401(tmp_path, monkeypatch):
     assert client.post(f"/corrections/{correction_id}/approve").status_code == 401
 
 
-def test_person_without_role_is_403(tmp_path, monkeypatch):
+def test_known_person_without_role_can_approve_but_unknown_person_cannot(tmp_path, monkeypatch):
     client, _, correction_id = _client(tmp_path, monkeypatch)
-    response = client.post(f"/corrections/{correction_id}/approve",
-                           headers={"X-Lineguard-User": "P1"})
-    assert response.status_code == 403
-    assert response.json()["detail"] == "This approval needs the role erp_owner"
     unknown = client.post(f"/corrections/{correction_id}/approve",
                           headers={"X-Lineguard-User": "nobody"})
     assert unknown.status_code == 403
+    rejected = client.post(f"/corrections/{correction_id}/reject",
+                           headers={"X-Lineguard-User": "P1"}, json={"reason": "test"})
+    assert rejected.status_code == 403
+    response = client.post(f"/corrections/{correction_id}/approve",
+                           headers={"X-Lineguard-User": "P1"})
+    assert response.status_code == 200
+    assert response.json()["approved_by"] == "P1"
 
 
 def test_erp_owner_approves_once_and_files_are_written(tmp_path, monkeypatch):

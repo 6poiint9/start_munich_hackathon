@@ -137,7 +137,8 @@ function CorrectionRow({correction}: {correction: Correction}) {
       </li>
     );
   }
-  const mayApprove = holdsRole(person, APPROVE_ROLES);
+  const mayApprove = person !== null;
+  const mayReject = holdsRole(person, APPROVE_ROLES);
   const mayCount = holdsRole(person, COUNT_ROLES);
   return (
     <li>
@@ -163,7 +164,7 @@ function CorrectionRow({correction}: {correction: Correction}) {
             Request stock count
           </Button>
         )}
-        {mayApprove && (
+        {mayReject && (
           <RejectForm
             label="Reject"
             busy={action.busy}
@@ -173,7 +174,7 @@ function CorrectionRow({correction}: {correction: Correction}) {
           />
         )}
       </div>
-      {!mayApprove && <ApproverNote roles={APPROVE_ROLES} />}
+      {!mayApprove && <ApproverNote roles={[]} />}
       <ErrorNote message={action.error} />
     </li>
   );

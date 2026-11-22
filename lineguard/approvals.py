@@ -1,7 +1,7 @@
 """What happens when a person clicks: approve, reject, request a count.
 
-Every function gets the person who clicked. The API checks the role
-before it calls these functions (docs/betrieb-und-wartung.md W1).
+Every function gets the person who clicked. The API checks the person
+and checks roles for actions other than approval (docs/betrieb-und-wartung.md W1).
 """
 
 from typing import Any
@@ -125,7 +125,7 @@ def _decision(rt: runtime.Runtime, decision_id: int) -> dict[str, Any]:
 
 
 def decision_roles(rt: runtime.Runtime, decision_id: int) -> list[str]:
-    """The roles of which one must approve this decision."""
+    """The roles of which one must reject this decision."""
     return _decision(rt, decision_id)["needs_roles"]
 
 
@@ -145,6 +145,15 @@ def approve_decision(rt: runtime.Runtime, decision_id: int, person: dict[str, An
     """Approves one option of a decision and sends its mail, exactly once."""
     decision = _decision(rt, decision_id)
     if decision["status"] != "open":
+        if decision["status"] == "approved":
+            failed = db.one(
+                rt.conn, rt.ws,
+                "SELECT e.id FROM emails e JOIN actions a ON a.id = e.action_id "
+                "WHERE e.workspace_id = ? AND a.option_id = ? AND e.status = 'failed'",
+                (decision["recommended_option"],))
+            if failed:
+                raise StateError(
+                    "Mail delivery could not be confirmed. Check the mailbox before sending again.")
         return decision
     if decision["dedupe_key"].startswith("unclosable:"):
         if option_id is not None:
@@ -241,7 +250,7 @@ def _email(rt: runtime.Runtime, email_id: int) -> dict[str, Any]:
 
 
 def email_roles(rt: runtime.Runtime, email_id: int) -> list[str] | None:
-    """Roles needed to send a draft. None means any known person."""
+    """Roles needed to discard a draft. None means any known person."""
     row = _email(rt, email_id)
     if row["decision_id"]:
         return decision_roles(rt, row["decision_id"])
@@ -256,6 +265,9 @@ def email_roles(rt: runtime.Runtime, email_id: int) -> list[str] | None:
 def approve_email(rt: runtime.Runtime, email_id: int, person: dict[str, Any], subject: str | None = None, body: str | None = None) -> dict[str, Any]:
     """Sends a draft. A draft of a decision approves that decision too."""
     row = _email(rt, email_id)
+    if row["status"] == "failed":
+        raise StateError(
+            "Mail delivery could not be confirmed. Check the mailbox before sending again.")
     if row["status"] != "draft":
         return row
     if subject or body:

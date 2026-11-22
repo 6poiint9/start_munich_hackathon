@@ -21,9 +21,9 @@ You need Node.js 20.19 or newer. Run all commands in the folder `web/`.
 
 4. Open `http://localhost:3000` in a browser.
 
-The backend accepts browser calls only from port 3000 and port 3100. If you use a different port, the browser blocks the calls and the page shows the demo data.
+The backend accepts browser calls only from port 3000 and port 3100. If you use a different port, the browser blocks the calls.
 
-If the backend does not answer on the first load, the page changes to mock mode. In mock mode the page shows the badge "Demo data".
+If the backend does not answer, the page reports that it cannot connect. It retries every 5 seconds. The page does not switch to demo data.
 
 ## Mock mode
 
@@ -75,7 +75,7 @@ The API contract is in `docs/api.md` in the repository root. The page takes the 
 
 - The page loads `/state`, the selected case and the event log every 5 seconds.
 - "Acting as" stores the selected person in the browser. Each write call sends the `person_id` of this person in the header `X-Lineguard-User`.
-- A button shows only if the selected person holds a role that the approval needs. If not, the page names the role that must approve.
+- Any selected person can approve. Rejection, discarding and count requests still require the matching role.
 - Person selection is not authentication. Restrict write access before a public deployment.
 
 ERP corrections show the proposed data before approval. In `proposal_file` mode, approval saves local JSON and CSV files. It does not update the ERP. A later ERP export must confirm the new quantity. Browser mock mode does not save these files.

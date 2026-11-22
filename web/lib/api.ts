@@ -29,15 +29,10 @@ const API_BASE = (
 const USER_HEADER = 'X-Lineguard-User';
 const FILE_TEXT_LIMIT = 200_000;
 
-let mockMode = process.env.NEXT_PUBLIC_MOCK === '1';
+const mockMode = process.env.NEXT_PUBLIC_MOCK === '1';
 
 export function isMock(): boolean {
   return mockMode;
-}
-
-/** Switches to the demo data. The page calls this when the API is down. */
-export function enableMock(): void {
-  mockMode = true;
 }
 
 async function readJson(response: Response): Promise<unknown> {

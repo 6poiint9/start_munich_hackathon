@@ -215,7 +215,7 @@ export function approveDecision(
   personId: string | null,
 ): void {
   const {view, item} = find<Decision>(id, (entry) => entry.decisions);
-  const actor = person(personId, decisionRoles(item));
+  const actor = person(personId, []);
   requireStatus(item, 'open');
   if (item.kind === 'unclosable_gap') {
     item.status = 'approved';
@@ -277,7 +277,7 @@ export function approveEmail(
   personId: string | null,
 ): void {
   const {view, item} = find<Email>(id, (entry) => entry.emails);
-  const actor = person(personId, mailRoles(view));
+  const actor = person(personId, []);
   requireStatus(item, 'draft');
   item.subject = edit.subject ?? item.subject;
   item.body = edit.body ?? item.body;
@@ -299,7 +299,7 @@ export function discardEmail(id: number, personId: string | null): void {
 
 export function approveCorrection(id: number, personId: string | null): void {
   const {view, item} = find<Correction>(id, (entry) => entry.corrections);
-  const actor = person(personId, ['erp_owner']);
+  const actor = person(personId, []);
   requireStatus(item, 'proposed');
   item.status = 'handed_over';
   item.approved_by = actor.person_id;

@@ -121,7 +121,8 @@ export function DecisionBlock({decision, view, live}: DecisionBlockProps) {
   const chosen = feasible.find((option) => option.id === picked) ?? fallback;
   const open = decision.status === 'open';
   const roles = decisionRoles(decision);
-  const allowed = holdsRole(person, roles);
+  const allowed = person !== null;
+  const mayReject = holdsRole(person, roles);
   const decider = people.find((entry) => entry.person_id === decision.decided_by)?.name ?? decision.decided_by;
   const latestUseful = view.detail.latest_useful_arrival;
   const route = roles.map(roleWord).join(' or ') || 'Any role';
@@ -150,7 +151,7 @@ export function DecisionBlock({decision, view, live}: DecisionBlockProps) {
       {decision.explanation !== null && <p className="cd-explain">{decision.explanation}</p>}
       <dl className="cd-route">
         <div>
-          <dt className="lg-label">Who approves</dt>
+          <dt className="lg-label">Suggested owner</dt>
           <dd>
             {route}
             {decision.approver_name !== null && ` · ${decision.approver_name}`}
@@ -225,7 +226,7 @@ export function DecisionBlock({decision, view, live}: DecisionBlockProps) {
                 </Button>
                 {!isAlert && <RejectForm
                   label="Reject"
-                  busy={action.busy}
+                  busy={action.busy || !mayReject}
                   onReject={(reason) =>
                     void action.run((personId) => api.rejectDecision(decision.id, reason, personId))
                   }
@@ -233,7 +234,7 @@ export function DecisionBlock({decision, view, live}: DecisionBlockProps) {
               </div>
             </>
           ) : (
-            <ApproverNote roles={roles} name={decision.approver_name} />
+            <ApproverNote roles={[]} />
           )}
           <ErrorNote message={action.error} />
         </footer>
