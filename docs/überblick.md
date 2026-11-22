@@ -59,6 +59,7 @@ Messy data, nothing hardcoded? Yes.
 - Contradictions: a source ranking decides which source wins. For the art book, the handwritten note beats the ERP booking.
 - No customer values in the core: all of Soony's values sit in a pack folder. tests/test_no_customer_values.py fails if a customer value appears in the core, and a second invented customer (demo_bikes) runs on the same core.
 - Untrusted content: an instruction inside a document is flagged and counts in no calculation (tests/test_untrusted.py).
+Does it cope when a new drop arrives? Yes. The Watcher (lineguard/agents/watcher.py) compares checksums and finds new, replaced and removed files. Only the changed file is read again, then coverage and plans are recomputed. In the demo, the scan arrives as a new file and the header turns red without a restart.
 
 Pricing for Sooney:
 My proposal is a subscription per site of about €5,000 per month, so about €60,000 per year for the Hamburg site. That is less than a third of the goods value of the art book case alone.
