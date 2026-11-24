@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lineguard: the Grand Heist 6 story, with the team</title>
+<style>
+  @font-face {
+    font-family: 'Hanken Grotesk';
+    src: url('../web/app/fonts/HankenGrotesk-Variable-latin.woff2') format('woff2');
+    font-weight: 100 900;
+    font-display: swap;
+  }
+
+  :root {
+    --night: #160a2b;
+    --ink: #0b0614;
+    --white: #fff8ec;
+    --pink: #ff2d95;
+    --orange: #ff8a1f;
+    --yellow: #ffd23f;
+    --cyan: #2de2e6;
+    --green: #3dff8b;
+    --red: #ff3b3b;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --display: Impact, Haettenschweiler, 'Arial Narrow Bold', 'Helvetica Neue Condensed Bold', sans-serif;
+    --body: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --hand: 'Marker Felt', 'Bradley Hand', 'Segoe Print', 'Comic Sans MS', cursive;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #000; overflow: hidden; font-family: var(--body); color: var(--white); -webkit-font-smoothing: antialiased; }
+
+  .stage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1600px;
+    height: 900px;
+    background: var(--night);
+    overflow: hidden;
+  }
+
+  /* Scenes. A new scene wipes in from the left over the old one. */
+  .scene {
+    position: absolute;
+    inset: 0;
+    padding: 110px 90px 90px;
+    visibility: hidden;
+    clip-path: inset(0 100% 0 0);
+    z-index: 1;
+  }
+  .scene.was { visibility: visible; clip-path: inset(0); z-index: 1; }
+  .scene.active {
+    visibility: visible;
+    clip-path: inset(0);
+    z-index: 2;
+    transition: clip-path 600ms var(--ease-in-out);
+  }
+  .scene::after {
+    /* Halftone dots, as in a printed comic. */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgb(0 0 0 / 0.22) 1.2px, transparent 1.6px);
+    background-size: 9px 9px;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+
+  .bg-sunset { background: linear-gradient(180deg, #2b0f54 0%, #8a1c7c 34%, #ff2d95 58%, #ff8a1f 80%, #ffd23f 100%); }
+  .bg-office { background: linear-gradient(160deg, #0d2b45 0%, #1a0b3a 55%, #4a0f5e 100%); }
+  .bg-alarm { background: linear-gradient(180deg, #2a0410 0%, #7a0b1e 55%, #ff3b3b 130%); }
+  .bg-hero { background: linear-gradient(150deg, #06283d 0%, #0b5a6e 45%, #2de2e6 140%); }
+  .bg-dawn { background: linear-gradient(180deg, #123524 0%, #1f7a4d 50%, #ffd23f 135%); }
+  .bg-map { background: radial-gradient(circle at 42% 55%, #2b0f54 0%, #160a2b 55%, #0b0614 100%); }
+
+  /* Builds */
+  [data-step] { opacity: 0; transform: translateY(18px); transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
+  [data-step].on {
+    opacity: 1;
+    transform: none;
+    transition: opacity 500ms var(--ease-out), transform 500ms var(--ease-out);
+    transition-delay: calc(var(--i, 0) * 70ms);
+  }
+  [data-only] { opacity: 0; transition: opacity 200ms ease; }
+  [data-only].on { opacity: 1; transition: opacity 400ms ease 200ms; }
+
+  /* Type */
+  .title {
+    font-family: var(--display);
+    font-style: italic;
+    text-transform: uppercase;
+    line-height: 0.92;
+    letter-spacing: 0.01em;
+    color: var(--white);
+    -webkit-text-stroke: 3px var(--ink);
+    paint-order: stroke fill;
+    text-shadow: 7px 7px 0 var(--ink);
+  }
+  .t-xl { font-size: 190px; }
+  .t-l { font-size: 120px; }
+  .t-m { font-size: 84px; }
+  .yellow { color: var(--yellow); }
+  .pink { color: var(--pink); }
+  .cyan { color: var(--cyan); }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+
+  .tag {
+    display: inline-block;
+    font-family: var(--display);
+    font-size: 30px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--ink);
+    color: var(--yellow);
+    padding: 8px 18px;
+    transform: skewX(-8deg);
+  }
+  [data-step].tag { transform: skewX(-8deg) translateY(18px); }
+  [data-step].tag.on { transform: skewX(-8deg); }
+
+  .lead { font-size: 36px; line-height: 1.25; font-weight: 600; text-shadow: 3px 3px 0 var(--ink); }
+
+  /* Comic panels */
+  .panel {
+    background: var(--white);
+    color: var(--ink);
+    border: 6px solid var(--ink);
+    box-shadow: 12px 12px 0 var(--ink);
+    padding: 26px 30px;
+  }
+  .panel .k { font-family: var(--display); font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a2b8f; }
+  .panel .v { font-family: var(--display); font-style: italic; font-size: 92px; line-height: 1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .panel p { font-size: 26px; line-height: 1.25; font-weight: 600; margin-top: 8px; }
+
+  /* The slam: a banner that lands larger than its final size. */
+  .slam[data-step] { opacity: 0; transform: rotate(-4deg) scale(1.25); }
+  .slam[data-step].on { opacity: 1; transform: rotate(-4deg); transition: opacity 180ms ease, transform 420ms var(--ease-out); }
+  .banner {
+    position: absolute;
+    left: -40px;
+    right: -40px;
+    padding: 26px 0 22px;
+    text-align: center;
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 150px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    border-top: 8px solid var(--ink);
+    border-bottom: 8px solid var(--ink);
+    z-index: 3;
+  }
+  .banner.bad { background: var(--ink); color: var(--red); }
+  .banner.good { background: var(--yellow); color: var(--ink); }
+  .banner small { display: block; font-family: var(--body); font-style: normal; font-weight: 700; font-size: 30px; letter-spacing: 0; text-transform: none; margin-top: 10px; }
+  .banner.bad small { color: var(--white); }
+
+  /* Scene 1 */
+  .sun {
+    position: absolute;
+    left: 50%;
+    top: 250px;
+    width: 620px;
+    height: 620px;
+    margin-left: -310px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffe66d 0%, #ff8a1f 55%, #ff2d95 100%);
+    -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 46px, transparent 46px 58px);
+    mask-image: repeating-linear-gradient(180deg, #000 0 46px, transparent 46px 58px);
+    opacity: 0.9;
+  }
+  .skyline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 300px;
+    background: var(--ink);
+    clip-path: polygon(0 100%, 0 62%, 5% 62%, 5% 40%, 9% 40%, 9% 55%, 14% 55%, 14% 22%, 17% 22%, 17% 8%, 19% 8%, 19% 22%, 22% 22%, 22% 60%, 28% 60%, 28% 34%, 34% 34%, 34% 66%, 41% 66%, 41% 48%, 46% 48%, 46% 70%, 55% 70%, 55% 44%, 60% 44%, 60% 28%, 64% 28%, 64% 58%, 70% 58%, 70% 16%, 74% 16%, 74% 52%, 80% 52%, 80% 36%, 86% 36%, 86% 62%, 92% 62%, 92% 46%, 96% 46%, 96% 66%, 100% 66%, 100% 100%);
+  }
+  .palm { position: absolute; bottom: 0; width: 300px; height: 620px; fill: var(--ink); stroke: var(--ink); }
+  .palm.l { left: 10px; }
+  .palm.r { right: 10px; transform: scaleX(-1); }
+  .hero-title { position: relative; text-align: center; margin-top: 40px; z-index: 2; }
+  .hero-title .tag { margin-bottom: 18px; }
+  .stats { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; margin-top: 46px; }
+  .stats .panel:nth-child(1) { transform: rotate(-1.5deg); }
+  .stats .panel:nth-child(3) { transform: rotate(1.5deg); }
+  .stats [data-step].panel:nth-child(1) { transform: rotate(-1.5deg) translateY(18px); }
+  .stats [data-step].panel.on:nth-child(1) { transform: rotate(-1.5deg); }
+  .stats [data-step].panel:nth-child(3) { transform: rotate(1.5deg) translateY(18px); }
+  .stats [data-step].panel.on:nth-child(3) { transform: rotate(1.5deg); }
+  .under { position: relative; z-index: 2; text-align: center; margin-top: 34px; }
+
+  /* Scene 2 */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; margin-top: 40px; }
+  .terminal {
+    background: #04140c;
+    border: 6px solid var(--ink);
+    box-shadow: 12px 12px 0 var(--ink);
+    padding: 28px 32px;
+    font-family: var(--mono);
+    color: var(--green);
+    height: 330px;
+  }
+  .terminal .k { font-size: 24px; opacity: 0.75; }
+  .terminal .v { font-size: 104px; font-weight: 700; margin-top: 30px; letter-spacing: -0.02em; text-shadow: 0 0 18px rgb(61 255 139 / 0.6); }
+  .terminal .s { font-size: 24px; margin-top: 18px; }
+  .note {
+    background: #fffdf2;
+    color: var(--ink);
+    border: 6px solid var(--ink);
+    box-shadow: 12px 12px 0 var(--ink);
+    padding: 28px 32px;
+    height: 330px;
+    position: relative;
+  }
+  [data-step].note { transform: rotate(2.5deg) translateY(18px); }
+  [data-step].note.on { transform: rotate(2.5deg); }
+  .note .k { font-size: 22px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6b6b64; }
+  .note .printed { font-family: var(--mono); font-size: 70px; margin-top: 26px; position: relative; display: inline-block; color: #8a8a82; }
+  .note .printed::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    right: -8px;
+    top: 50%;
+    height: 7px;
+    background: #1d3fbf;
+    transform: rotate(-3deg) scaleX(0);
+    transform-origin: left center;
+  }
+  .note.on .printed::after { transform: rotate(-3deg) scaleX(1); transition: transform 500ms var(--ease-out) 500ms; }
+  .note .hand { position: absolute; right: 44px; top: 96px; font-family: var(--hand); font-size: 108px; color: #1d3fbf; transform: rotate(-6deg); opacity: 0; }
+  .note.on .hand { opacity: 1; transition: opacity 400ms ease 900ms; }
+  .note .s { font-size: 24px; font-weight: 600; position: absolute; left: 32px; bottom: 26px; }
+  .punch { margin-top: 50px; display: flex; align-items: center; gap: 40px; }
+
+  /* Scene 3 */
+  .belt { position: absolute; left: 0; right: 0; top: 240px; height: 176px; overflow: hidden; border-top: 8px solid var(--ink); border-bottom: 8px solid var(--ink); background: #2a0d18; }
+  .boxes { display: flex; gap: 40px; padding-top: 15px; width: max-content; animation: roll 1.1s linear infinite; }
+  .belt.at .boxes { animation-play-state: paused; }
+  @keyframes roll { to { transform: translateX(-140px); } }
+  /* A game case for Grand Heist 6: sunset cover, console strip on top. */
+  .box { width: 100px; height: 130px; flex: none; position: relative; overflow: hidden; border: 5px solid var(--ink); border-radius: 5px; background: linear-gradient(180deg, #2b0f54 0%, #8a1c7c 38%, #ff2d95 68%, #ff8a1f 100%); text-align: center; }
+  .box::before { content: ''; display: block; height: 12px; background: var(--cyan); border-bottom: 3px solid var(--ink); }
+  .box::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 22px; background: var(--ink); clip-path: polygon(0 100%, 0 55%, 12% 55%, 12% 20%, 22% 20%, 22% 60%, 38% 60%, 38% 0, 48% 0, 48% 50%, 66% 50%, 66% 25%, 78% 25%, 78% 62%, 100% 62%, 100% 100%); }
+  .box .t { display: block; margin-top: 9px; font-family: var(--display); font-size: 13px; line-height: 1; letter-spacing: 0.06em; text-transform: uppercase; color: var(--white); }
+  .box .n { display: block; margin-top: 2px; font-family: var(--display); font-style: italic; font-size: 60px; line-height: 1; color: var(--yellow); -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--ink); }
+  .box.late { transition: opacity 500ms ease; }
+  .belt.at .box.late { opacity: 0.18; }
+  .risk { position: absolute; left: 90px; right: 90px; top: 440px; display: grid; grid-template-columns: auto 1fr; gap: 50px; align-items: center; }
+  .banner.bad { top: 660px; }
+
+  /* Scene 4 */
+  .hero-grid { display: grid; grid-template-columns: 640px 1fr; gap: 60px; margin-top: 10px; }
+  .badge {
+    width: 150px;
+    height: 170px;
+    background: var(--cyan);
+    border: 8px solid var(--ink);
+    clip-path: polygon(50% 0, 100% 16%, 100% 58%, 50% 100%, 0 58%, 0 16%);
+    display: grid;
+    place-items: center;
+    font-family: var(--display);
+    font-size: 96px;
+    color: var(--ink);
+    margin-bottom: 20px;
+  }
+  .jobs { display: grid; gap: 22px; }
+  .job { display: grid; grid-template-columns: 74px 1fr; gap: 22px; align-items: center; padding: 20px 26px; }
+  .job .tick { width: 74px; height: 74px; border: 6px solid var(--ink); background: var(--green); display: grid; place-items: center; font-family: var(--display); font-size: 50px; }
+  .job .k { color: #0b5a6e; }
+  .job p { margin-top: 2px; font-size: 27px; }
+
+  /* Scene 5 */
+  .rescue { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; margin-top: 30px; }
+  .rescue .v { font-size: 76px; }
+  .stamp {
+    position: absolute;
+    right: 26px;
+    top: 22px;
+    font-family: var(--display);
+    font-size: 44px;
+    letter-spacing: 0.06em;
+    color: #1f7a4d;
+    border: 6px solid #1f7a4d;
+    padding: 4px 16px;
+  }
+  .stamp[data-at] { opacity: 0; transform: rotate(-12deg) scale(1.3); }
+  .stamp[data-at].at { opacity: 1; transform: rotate(-12deg); transition: opacity 150ms ease 250ms, transform 350ms var(--ease-out) 250ms; }
+  .road { position: absolute; left: 90px; right: 90px; top: 560px; height: 120px; }
+  .road .lane { position: absolute; left: 0; right: 0; top: 78px; height: 10px; background: var(--ink); }
+  .road .lane::after { content: ''; position: absolute; left: 0; right: 0; top: 3px; height: 4px; background: repeating-linear-gradient(90deg, var(--yellow) 0 40px, transparent 40px 80px); }
+  .road .city { position: absolute; top: 98px; font-family: var(--display); font-size: 28px; letter-spacing: 0.08em; text-shadow: 3px 3px 0 var(--ink); }
+  .road .city.a { left: 0; }
+  .road .city.b { right: 0; }
+  .truck { position: absolute; left: 0; top: 14px; width: 170px; height: 64px; transform: translateX(0); transition: transform 1800ms var(--ease-in-out); }
+  .truck.at { transform: translateX(1250px); }
+  .truck .load { position: absolute; left: 0; top: 0; width: 112px; height: 54px; background: var(--white); border: 6px solid var(--ink); font-family: var(--display); font-size: 22px; color: var(--ink); display: grid; place-items: center; }
+  .truck .cab { position: absolute; left: 112px; top: 14px; width: 54px; height: 40px; background: var(--cyan); border: 6px solid var(--ink); }
+  .truck .wheel { position: absolute; top: 46px; width: 24px; height: 24px; border-radius: 999px; background: var(--ink); border: 4px solid var(--white); }
+  .truck .w1 { left: 16px; }
+  .truck .w2 { left: 122px; }
+  .banner.good { top: 262px; }
+  .road-notes { position: absolute; left: 90px; right: 90px; top: 716px; display: flex; justify-content: center; gap: 30px; }
+
+  /* Scene 6 */
+  .map { display: grid; grid-template-columns: 400px 990px; gap: 30px; margin-top: 16px; }
+  .tally .k { font-family: var(--display); font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cyan); margin-top: 20px; }
+  .tally .k:first-child { margin-top: 0; }
+  .tally .big { font-family: var(--display); font-style: italic; font-size: 104px; line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 5px 5px 0 var(--ink); }
+  .says { position: relative; height: 140px; margin-top: 22px; }
+  .says p { position: absolute; inset: 0; font-size: 26px; line-height: 1.3; font-weight: 600; }
+  .field { position: relative; width: 990px; height: 440px; }
+  .mdot { position: absolute; width: 14px; height: 14px; border-radius: 999px; background: var(--cyan); opacity: 0; }
+  .mdot.de { background: var(--pink); box-shadow: 0 0 10px rgb(255 45 149 / 0.7); }
+  .mdot.soony { background: var(--yellow); box-shadow: 0 0 18px 4px rgb(255 210 63 / 0.8); }
+  .mdot[data-step] { transform: scale(0.9); }
+  .mdot[data-step].on { transform: none; }
+  .mdot.eu[data-step].on { opacity: 0.55; }
+  .chips { display: flex; gap: 18px; margin-top: 30px; flex-wrap: wrap; }
+  .chips .tag { font-size: 26px; background: var(--yellow); color: var(--ink); }
+  .fine { position: absolute; left: 90px; bottom: 40px; font-size: 18px; opacity: 0.7; }
+
+  /* The team on the first scene */
+  .crew { position: absolute; z-index: 3; width: 170px; text-align: center; }
+  .crew img { display: block; width: 170px; height: 170px; object-fit: cover; border-radius: 999px; border: 6px solid var(--ink); box-shadow: 8px 8px 0 var(--ink); background: var(--pink); }
+  .crew figcaption { display: inline-block; margin-top: -14px; position: relative; font-family: var(--display); font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--yellow); color: var(--ink); padding: 3px 14px; border: 4px solid var(--ink); transform: skewX(-8deg); }
+  .crew.c1 { left: 36px; top: 104px; }
+  .crew.c2 { left: 36px; top: 304px; }
+  .crew.c3 { right: 36px; top: 104px; }
+  .crew.c4 { right: 36px; top: 304px; }
+  .crew[data-step] { transform: scale(0.9); }
+  .crew[data-step].on { transform: none; }
+  .hero-title .t-xl { font-size: 172px; }
+  .stats { margin-top: 64px; }
+
+  /* Nils */
+  .bg-soony { background: linear-gradient(160deg, #24186b 0%, #5a4fd6 55%, #8b8bff 110%); }
+  .talk { display: grid; grid-template-columns: 760px 1fr; gap: 70px; margin-top: 36px; align-items: start; }
+  .portrait { border: 6px solid var(--ink); box-shadow: 12px 12px 0 var(--ink); background: #8b8bff; }
+  .portrait img { display: block; width: 100%; }
+  .portrait figcaption { display: flex; justify-content: space-between; gap: 20px; background: var(--ink); color: var(--yellow); font-family: var(--display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; padding: 10px 18px; }
+  .bubbles { display: grid; gap: 30px; justify-items: start; padding-top: 30px; }
+  .bubble { position: relative; background: var(--white); color: var(--ink); border: 6px solid var(--ink); border-radius: 34px; box-shadow: 10px 10px 0 var(--ink); padding: 24px 30px; font-size: 38px; line-height: 1.2; font-weight: 700; }
+  .bubble::before { content: ''; position: absolute; left: -40px; top: 44px; border: 20px solid transparent; border-right-color: var(--ink); }
+  .bubble::after { content: ''; position: absolute; left: -24px; top: 50px; border: 14px solid transparent; border-right-color: var(--white); }
+  .bubble + .bubble::before, .bubble + .bubble::after { display: none; }
+
+  /* Live demo */
+  .demo { text-align: center; margin-top: 10px; }
+  .demo .badge { margin: 0 auto 16px; }
+  .demo .lead { max-width: 1000px; margin: 22px auto 0; }
+  .go { margin-top: 44px; display: grid; gap: 18px; justify-items: center; }
+  .go .tag { font-size: 54px; padding: 14px 34px; background: var(--yellow); color: var(--ink); text-decoration: none; border: 6px solid var(--ink); box-shadow: 10px 10px 0 var(--ink); }
+  .go-note { font-size: 24px; font-weight: 600; text-shadow: 2px 2px 0 var(--ink); }
+
+  /* The return from the demo: the scene turns green and the banner lands. */
+  .win { position: absolute; inset: 0; background: linear-gradient(180deg, #123524 0%, #1f7a4d 50%, #ffd23f 135%); opacity: 0; transition: opacity 300ms ease; }
+  .win.at { opacity: 1; transition: opacity 700ms ease; }
+  .demo { position: relative; z-index: 1; }
+  .banner.good.demo-win { top: 548px; }
+  .win.at ~ .demo .lead[data-step].on, .win.at ~ .demo .go[data-step].on { opacity: 0; transition: opacity 200ms ease; }
+
+  /* Head-up display */
+  .hud { position: absolute; left: 90px; right: 90px; top: 34px; display: flex; justify-content: space-between; align-items: center; z-index: 5; }
+  .mission { font-family: var(--display); font-size: 26px; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 3px 3px 0 var(--ink); }
+  .wanted { display: flex; align-items: center; gap: 14px; }
+  .wanted span { font-family: var(--display); font-size: 22px; letter-spacing: 0.1em; text-shadow: 2px 2px 0 var(--ink); }
+  .star { font-size: 44px; line-height: 1; color: rgb(255 255 255 / 0.22); -webkit-text-stroke: 2px var(--ink); transition: color 300ms ease, transform 300ms var(--ease-out); }
+  .star.lit { color: var(--white); transform: scale(1.12); }
+  .wanted.max .star.lit { color: var(--red); animation: blink 0.7s steps(2, jump-none) infinite; }
+  @keyframes blink { to { color: var(--white); } }
+
+  .still *, .still *::after, .still *::before { transition: none !important; animation: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scene.active { transition: none; }
+    [data-step], [data-step].on, [data-step].tag, [data-step].tag.on { transition: opacity 200ms ease; transition-delay: 0s; }
+    [data-step] { transform: none; }
+    [data-step].tag, .tag { transform: skewX(-8deg); }
+    .slam[data-step], .slam[data-step].on { transform: rotate(-4deg); transition: opacity 200ms ease; }
+    .boxes { animation: none; }
+    .truck { transition: none; }
+    .wanted.max .star.lit { animation: none; }
+    .stamp[data-at], .stamp[data-at].at { transform: rotate(-12deg); }
+  }
+</style>
+</head>
+<body>
+
+<main class="stage" id="stage">
+
+  <svg width="0" height="0" style="position:absolute">
+    <symbol id="palm" viewBox="0 0 300 620">
+      <path d="M150 620 C146 470 156 330 176 200 L190 204 C174 334 168 470 172 620 Z"/>
+      <path d="M182 205 C120 150 60 150 8 190 C70 176 120 186 176 220 Z"/>
+      <path d="M182 205 C150 130 100 90 36 84 C96 110 136 150 172 216 Z"/>
+      <path d="M184 204 C190 120 230 70 292 56 C240 92 212 140 196 212 Z"/>
+      <path d="M186 206 C236 160 284 166 300 214 C268 190 232 192 192 222 Z"/>
+      <path d="M184 206 C196 150 190 96 160 44 C176 100 176 150 174 210 Z"/>
+    </symbol>
+  </svg>
+
+  <!-- 1. Launch day -->
+  <section class="scene bg-sunset" data-mission="Prologue: launch day" data-stars="[0,0,0]">
+    <div class="sun"></div>
+    <div class="skyline"></div>
+    <svg class="palm l"><use href="#palm"/></svg>
+    <svg class="palm r"><use href="#palm"/></svg>
+
+    <figure class="crew c1" data-step="0" style="--i: 5"><img src="pitch-assets/max.png" alt="Max"><figcaption>Max</figcaption></figure>
+    <figure class="crew c2" data-step="0" style="--i: 6"><img src="pitch-assets/nabil.png" alt="Nabil"><figcaption>Nabil</figcaption></figure>
+    <figure class="crew c3" data-step="0" style="--i: 7"><img src="pitch-assets/chris.png" alt="Chris"><figcaption>Chris</figcaption></figure>
+    <figure class="crew c4" data-step="0" style="--i: 8"><img src="pitch-assets/kevin.png" alt="Kevin"><figcaption>Kevin</figcaption></figure>
+
+    <div class="hero-title">
+      <div class="tag" data-step="0">Team TRIPLET presents</div>
+      <div class="title t-xl yellow" data-step="0" style="--i: 2">Grand Heist 6</div>
+      <div class="lead" data-step="0" style="--i: 4">The biggest launch at Soony. On sale Sunday, 8 pm.</div>
+    </div>
+
+    <div class="stats">
+      <div class="panel" data-step="1"><div class="k">Copies to ship</div><div class="v">712,000</div></div>
+      <div class="panel" data-step="1" style="--i: 1"><div class="k">Collector's Editions</div><div class="v">72,000</div><p>All pre-ordered. All numbered.</p></div>
+      <div class="panel" data-step="1" style="--i: 2"><div class="k">In each Collector's Edition</div><div class="v">1</div><p>art book. No art book, no edition.</p></div>
+    </div>
+  </section>
+
+  <!-- 2. The missing zero -->
+  <section class="scene bg-office" data-mission="Mission 1: one zero too many" data-stars="[0,1,2]">
+    <div class="title t-m" data-step="0">Wednesday. The art books arrive.</div>
+
+    <div class="duo">
+      <div class="terminal" data-step="0" style="--i: 2">
+        <div class="k">SAP &gt; goods receipt 5000413065</div>
+        <div class="v">80,000</div>
+        <div class="s">art books booked into stock</div>
+      </div>
+      <div class="note" data-step="1">
+        <div class="k">Delivery note, Nowak</div>
+        <div class="printed">80.000</div>
+        <div class="hand">8 000</div>
+        <div class="s">Corrected by hand. Nobody types it into SAP.</div>
+      </div>
+    </div>
+
+    <div class="punch">
+      <div class="title t-l pink" data-step="2">One zero too many.</div>
+      <div class="lead" data-step="2" style="--i: 3">72,000 art books now exist only in SAP.</div>
+    </div>
+  </section>
+
+  <!-- 3. Nils -->
+  <section class="scene bg-soony" data-mission="Mission 1: what Nils told us" data-stars="[2,2,3]">
+    <div class="title t-m" data-step="0">Nils knows this error.</div>
+
+    <div class="talk">
+      <figure class="portrait" data-step="0" style="--i: 2">
+        <img src="pitch-assets/nils-and-intern.png" alt="Nils Berger and his intern, both in Soony sweaters">
+        <figcaption><span>His intern</span><span>Nils Berger, IT &amp; Systems Lead at Soony</span></figcaption>
+      </figure>
+
+      <div class="bubbles">
+        <div class="bubble" data-step="1">One zero too many is the classic error.</div>
+        <div class="bubble" data-step="2">Nobody sees it until the part is needed. Then I must prove it myself.</div>
+        <div class="tag" data-step="2" style="--i: 5">So we built Lineguard for Nils</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Launch at risk -->
+  <section class="scene bg-alarm" data-mission="Mission 2: the packing line" data-stars="[3,4,5]">
+    <div class="title t-m" data-step="0">Sunday, 11:27. The line runs dry.</div>
+
+    <div class="belt" data-at="1">
+      <div class="boxes" id="boxes"></div>
+    </div>
+
+    <div class="risk">
+      <div class="title t-xl red" data-step="1">5,900</div>
+      <div class="lead" data-step="1" style="--i: 2">Collector's Editions cannot be packed.<br>The fans paid for them. No truck arrives in time.</div>
+    </div>
+
+    <div class="banner bad slam" data-step="2">Launch at risk<small>Nobody knows. The plan trusts SAP.</small></div>
+  </section>
+
+  <!-- 5. Live demo -->
+  <section class="scene bg-hero" data-mission="Mission 3: the rescue, live" data-stars="[5,0]" data-open="https://lineguard.dlsystem.de">
+    <div class="win" data-at="1"></div>
+    <div class="demo">
+      <div class="badge" data-step="0">L</div>
+      <div class="title t-xl cyan" data-step="0" style="--i: 1">Lineguard</div>
+      <div class="lead" data-step="0" style="--i: 3">Rewind to Wednesday. This time Lineguard watches each booking on the day that it happens.</div>
+      <div class="go" data-step="0" style="--i: 6">
+        <a class="tag" id="demo-link" href="https://lineguard.dlsystem.de" target="_blank" rel="noopener">Start the live demo</a>
+        <span class="go-note" id="go-note">Press → to open the demo in a new tab.</span>
+      </div>
+    </div>
+    <div class="banner good slam demo-win" data-step="1">Mission passed<small>Lineguard found the error on the day of the booking.</small></div>
+  </section>
+
+  <!-- 6. Next missions -->
+  <section class="scene bg-map" data-mission="Next missions" data-stars="[0,0,0,0]">
+    <div class="map">
+      <div class="tally" data-step="0">
+        <div class="k">Sites to protect</div>
+        <div class="big" data-count="[1, 23000, 90000, 90000]" data-format="int">1</div>
+        <div class="k">Per year, at €60k per site</div>
+        <div class="big green" data-count="[60, 1380000, 5400000, 5400000]" data-format="eur">€60k</div>
+        <div class="says">
+          <p data-only="0">Soony in Hamburg is site one.</p>
+          <p data-only="1">Germany: about 23,000 manufacturing sites with 50 or more employees.</p>
+          <p data-only="2">EU: about 90,000 manufacturers with 50 or more employees.</p>
+          <p data-only="3">Each site that books goods by hand has this error. A new customer is a new configuration.</p>
+        </div>
+      </div>
+      <div>
+        <div class="title t-m" data-step="0" style="margin-bottom: 26px">Soony is not the only one.</div>
+        <div class="field" id="field"></div>
+        <div class="chips">
+          <div class="tag" data-step="3">Product launches</div>
+          <div class="tag" data-step="3" style="--i: 1">Seasonal retail</div>
+          <div class="tag" data-step="3" style="--i: 2">Series start in machine building</div>
+          <div class="tag" data-step="3" style="--i: 3">Trade fair goods</div>
+        </div>
+      </div>
+    </div>
+    <div class="fine" data-step="0">One dot is 100 sites. The price is our proposal. The site numbers are estimates.</div>
+  </section>
+
+  <div class="hud">
+    <div class="mission" id="mission"></div>
+    <div class="wanted" id="wanted">
+      <span>Launch risk</span>
+      <i class="star">★</i><i class="star">★</i><i class="star">★</i><i class="star">★</i><i class="star">★</i>
+    </div>
+  </div>
+</main>
+
+<script>
+  const stage = document.getElementById('stage');
+  const scenes = [...document.querySelectorAll('.scene')];
+  const mission = document.getElementById('mission');
+  const wanted = document.getElementById('wanted');
+  const stars = [...wanted.querySelectorAll('.star')];
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (new URLSearchParams(location.search).has('still')) document.documentElement.classList.add('still');
+
+  // Scene 3: boxes on the belt. The boxes on the right get no art book.
+  const boxes = document.getElementById('boxes');
+  for (let i = 0; i < 14; i += 1) {
+    boxes.insertAdjacentHTML('beforeend', `<div class="box${i > 4 ? ' late' : ''}"><span class="t">Grand Heist</span><span class="n">VI</span></div>`);
+  }
+
+  // Scene 6: 900 dots. The dots fill outward from the first site.
+  const field = document.getElementById('field');
+  const cells = [];
+  for (let r = 0; r < 20; r += 1) {
+    for (let c = 0; c < 45; c += 1) {
+      const noise = Math.abs(Math.sin(r * 12.9898 + c * 78.233) * 43758.5453) % 1;
+      cells.push({r, c, d: Math.hypot(c - 14, r - 10) + noise * 1.5});
+    }
+  }
+  cells.sort((a, b) => a.d - b.d);
+  cells.forEach((cell, rank) => {
+    const dot = document.createElement('div');
+    const tier = rank === 0 ? 'soony' : rank < 230 ? 'de' : 'eu';
+    dot.className = `mdot ${tier}`;
+    dot.style.left = `${cell.c * 22}px`;
+    dot.style.top = `${cell.r * 22}px`;
+    dot.dataset.step = tier === 'soony' ? 0 : tier === 'de' ? 1 : 2;
+    dot.style.setProperty('--i', tier === 'de' ? rank * 0.04 : tier === 'eu' ? (rank - 230) * 0.02 : 3);
+    field.append(dot);
+  });
+
+  const formats = {
+    int: (v) => Math.round(v).toLocaleString('en-US'),
+    // The value is in thousands of euros.
+    eur: (v) => v < 1000 ? `€${Math.round(v)}k`
+      : v < 1e6 ? `€${(v / 1000).toFixed(v < 1e4 ? 1 : 0).replace(/\.0$/, '')}M`
+      : `€${(v / 1e6).toFixed(1)}B`,
+  };
+
+  // The steps differ by factors of ten and more, so the count runs on a log scale.
+  function countTo(el, target, instant) {
+    const show = formats[el.dataset.format];
+    const from = el.shown ?? target;
+    cancelAnimationFrame(el.frame);
+    if (instant || calm || from === target) {
+      el.shown = target;
+      el.textContent = show(target);
+      return;
+    }
+    const began = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - began) / 1100);
+      const eased = 1 - Math.pow(1 - t, 4);
+      el.shown = from * Math.pow(target / from, eased);
+      el.textContent = show(t === 1 ? target : el.shown);
+      if (t < 1) el.frame = requestAnimationFrame(tick);
+      else el.shown = target;
+    };
+    el.frame = requestAnimationFrame(tick);
+  }
+
+  const lastStep = scenes.map((scene) =>
+    Math.max(0, ...[...scene.querySelectorAll('[data-step], [data-at]')]
+      .map((el) => Number(el.dataset.step ?? el.dataset.at)))
+  );
+
+  let scene = 0;
+  let step = 0;
+  let before = -1;
+
+  function render() {
+    scenes.forEach((el, i) => {
+      const here = i === scene;
+      el.classList.toggle('active', here);
+      el.classList.toggle('was', i === before && !here);
+      el.querySelectorAll('[data-step]').forEach((part) =>
+        part.classList.toggle('on', here && Number(part.dataset.step) <= step));
+      el.querySelectorAll('[data-at]').forEach((part) =>
+        part.classList.toggle('at', here && Number(part.dataset.at) <= step));
+      el.querySelectorAll('[data-only]').forEach((part) =>
+        part.classList.toggle('on', here && Number(part.dataset.only) === step));
+      el.querySelectorAll('[data-count]').forEach((part) => {
+        const values = JSON.parse(part.dataset.count);
+        countTo(part, values[here ? Math.min(step, values.length - 1) : 0], !here);
+      });
+    });
+
+    const now = scenes[scene];
+    const levels = JSON.parse(now.dataset.stars);
+    const level = levels[Math.min(step, levels.length - 1)];
+    stars.forEach((star, i) => star.classList.toggle('lit', i < level));
+    wanted.classList.toggle('max', level === 5);
+    mission.textContent = now.dataset.mission;
+  }
+
+  function go(toScene, toStep) {
+    if (toScene !== scene) before = scene;
+    scene = toScene;
+    step = toStep;
+    render();
+  }
+
+  const opened = new Set();
+  const demoLink = document.getElementById('demo-link');
+  const goNote = document.getElementById('go-note');
+
+  function markOpened() {
+    opened.add(scene);
+    goNote.textContent = '';
+  }
+  // A click on the link opens the demo. It must not also move the deck forward.
+  demoLink.addEventListener('click', (event) => { event.stopPropagation(); markOpened(); });
+
+  function next() {
+    const url = scenes[scene].dataset.open;
+    if (url && step === 0 && !opened.has(scene)) {
+      markOpened();
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    if (step < lastStep[scene]) go(scene, step + 1);
+    else if (scene < scenes.length - 1) go(scene + 1, 0);
+  }
+
+  function back() {
+    if (step > 0) go(scene, step - 1);
+    else if (scene > 0) go(scene - 1, lastStep[scene - 1]);
+  }
+
+  // The return from the demo tab shows "Mission passed" without a key press.
+  let away = false;
+  function left() {
+    if (opened.has(scene) && step === 0) away = true;
+  }
+  function returned() {
+    if (!away || document.hidden) return;
+    away = false;
+    const from = scene;
+    setTimeout(() => {
+      if (scene === from && step === 0 && scenes[scene].dataset.open) go(scene, 1);
+    }, 400);
+  }
+  window.addEventListener('blur', left);
+  window.addEventListener('focus', returned);
+  document.addEventListener('visibilitychange', () => (document.hidden ? left() : returned()));
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
+    stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(event.key)) { event.preventDefault(); next(); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(event.key)) { event.preventDefault(); back(); }
+    else if (event.key === 'f' || event.key === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    }
+  });
+  stage.addEventListener('click', next);
+  window.addEventListener('resize', fit);
+
+  // A hash such as #2.1 opens scene 2 at build step 1.
+  const start = /^#(\d+)(?:\.(\d+))?$/.exec(location.hash);
+  if (start) {
+    scene = Math.min(scenes.length, Math.max(1, Number(start[1]))) - 1;
+    step = Math.min(lastStep[scene], Number(start[2] ?? 0));
+  }
+
+  fit();
+  requestAnimationFrame(() => requestAnimationFrame(render));
+</script>
+</body>
+</html>
